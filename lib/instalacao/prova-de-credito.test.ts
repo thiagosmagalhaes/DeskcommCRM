@@ -39,6 +39,12 @@ describe("montarRequisicaoDeProva", () => {
     expect(anthropic!.body).toMatchObject({ max_tokens: 1 });
   });
 
+  it("openai usa max_completion_tokens, não max_tokens — modelos de raciocínio recusam o parâmetro antigo", () => {
+    const openai = montarRequisicaoDeProva("openai", "k", "m");
+    expect(openai!.body).toMatchObject({ max_completion_tokens: 16 });
+    expect(openai!.body).not.toHaveProperty("max_tokens");
+  });
+
   it("provedor desconhecido não recebe 'ok' por omissão", () => {
     expect(montarRequisicaoDeProva("inventado", "k", "m")).toBeNull();
   });
@@ -73,6 +79,18 @@ describe("classificarResposta", () => {
     const r = classificarResposta(404, "model not found");
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.codigo).toBe("modelo_inexistente");
+  });
+
+  it("modelo de raciocínio que estourou o teto PENSANDO conta como prova — a cobrança já passou", () => {
+    // Mensagem real da OpenAI quando max_completion_tokens acaba nos tokens de
+    // raciocínio antes de emitir texto: não é recusa de crédito, é o teto de
+    // teste sendo pequeno demais para ESTE modelo. Dizer "adicione saldo" aqui
+    // seria o mesmo diagnóstico errado que motivou trocar max_tokens.
+    const r = classificarResposta(
+      400,
+      '{"error":{"message":"Could not finish the message because max_tokens or model output limit was reached. Please try again with higher max_tokens.","type":"invalid_request_error","param":null,"code":null}}',
+    );
+    expect(r).toEqual({ ok: true });
   });
 });
 

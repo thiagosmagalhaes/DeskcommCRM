@@ -73,7 +73,15 @@ export function montarRequisicaoDeProva(
         // corpo da prova é que falava o parâmetro antigo. `max_completion_tokens`
         // é aceito por TODOS os modelos de chat completions atuais (substituiu
         // `max_tokens` para a família inteira, não só para os de raciocínio).
-        body: { model: modelo, max_completion_tokens: 1, messages: msg },
+        //
+        // 16, não 1: nos modelos de raciocínio o teto cobre os tokens de
+        // raciocínio ANTES do texto visível — com 1 o modelo gasta o teto
+        // inteiro pensando e nunca chega a emitir nada, e a API devolve erro
+        // (`model output limit was reached`) mesmo com a chave em dia. 16 dá
+        // fôlego pro modelo mais leve da família terminar; para o de
+        // raciocínio mais pesado, `classificarResposta` reconhece esse erro
+        // específico como prova válida mesmo assim (a cobrança já passou).
+        body: { model: modelo, max_completion_tokens: 16, messages: msg },
       };
     case "openrouter":
       return {
@@ -108,9 +116,21 @@ export function montarRequisicaoDeProva(
   }
 }
 
+/**
+ * Erro específico de modelo de raciocínio (OpenAI o1/o3, gpt-5...) quando o
+ * teto de tokens acaba nos tokens de PENSAR antes de emitir texto visível.
+ * Não é o modelo recusando a chamada por falta de saldo — é o request tendo
+ * PASSADO pela cobrança e começado a gerar. Tratar como falha reproduziria o
+ * mesmo diagnóstico errado ("adicione saldo") que motivou trocar `max_tokens`
+ * por `max_completion_tokens`: o teto pequeno demais para este modelo, não a
+ * conta vazia.
+ */
+const SAIDA_ESGOTADA_POR_RACIOCINIO = /max_tokens or model output limit was reached/i;
+
 /** Traduz a resposta HTTP no mesmo vocabulário de erro do runtime. */
 export function classificarResposta(status: number, corpo: string): ResultadoDaProva {
   if (status >= 200 && status < 300) return { ok: true };
+  if (SAIDA_ESGOTADA_POR_RACIOCINIO.test(corpo)) return { ok: true };
   // `normalizarErro` lê `status` do objeto — é a régua canônica, compartilhada
   // com a tela de Execuções, e ela também redige a mensagem do provedor (que
   // pode ecoar header de autorização em endpoint próprio).
