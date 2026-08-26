@@ -28,6 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { modeloAtendeExigencia } from "@/lib/ai/pontos/validar-binding";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -93,7 +94,12 @@ interface Dados {
   credenciais: Credencial[];
   modelos: Modelo[];
   podeEditar: boolean;
+  /** O que vale para todo ponto sem binding próprio e sem variável de ambiente. */
+  padrao: { provider: string; defaultModel: string | null };
 }
+
+/** Sentinela do "nenhum modelo padrão" — Radix recusa `value=""` num item. */
+const SEM_MODELO_PADRAO = "__nenhum__";
 
 export function PainelDeProvedores() {
   const [dados, setDados] = useState<Dados | null>(null);
@@ -190,6 +196,8 @@ export function PainelDeProvedores() {
         </Card>
       )}
 
+      {dados.podeEditar && <PadraoDaOrganizacao dados={dados} aoSalvar={carregar} />}
+
       <div className="space-y-8">
         {porPapel.map(({ papel, info, pontos }) => (
           <section key={papel} data-testid={`papel-${papel}`}>
@@ -257,6 +265,126 @@ function ResumoDoGrupo({ pontos }: { pontos: Ponto[] }) {
   );
 }
 
+/**
+ * O padrão da organização — o que vale para todo ponto que ninguém configurou
+ * individualmente ainda (ver `decidirBinding`, ramo 4, em `lib/ai/pontos/resolver.ts`).
+ *
+ * Sem este cartão, trocar de provedor exigia abrir "Configuração avançada" em
+ * cada um dos ~6 papéis e reconfigurar ponto a ponto — e os pontos que ninguém
+ * tocasse continuavam presos no que o instalador (ou o trigger de banco)
+ * semeou, tipicamente `anthropic`. Quem só tem chave de outro provedor via
+ * aqui, de uma vez, o que muda tudo que ainda não tem escolha própria.
+ */
+function PadraoDaOrganizacao({
+  dados,
+  aoSalvar,
+}: {
+  dados: Dados;
+  aoSalvar: () => Promise<void>;
+}) {
+  const [provider, setProvider] = useState(dados.padrao.provider);
+  const [modelId, setModelId] = useState(dados.padrao.defaultModel ?? "");
+  const [salvando, setSalvando] = useState(false);
+
+  const modelosDoProvider = dados.modelos.filter((m) => m.provider === provider);
+
+  async function salvar() {
+    setSalvando(true);
+    try {
+      const res = await fetch("/api/v1/ai/providers/padrao", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ provider, default_model: modelId.trim() || null }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error?.message ?? "não consegui salvar o padrão da organização");
+        return;
+      }
+      toast.success(
+        `Padrão da organização agora é ${provider}${modelId ? ` / ${modelId}` : ""}`,
+      );
+      await aoSalvar();
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <Card className="mb-6 p-4" data-testid="padrao-da-organizacao">
+      <h2 className="font-medium">Padrão da organização</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        O que vale para todo ponto que você não configurar individualmente abaixo, em
+        &quot;Configuração avançada&quot;. Trocar aqui muda de uma vez todos os pontos que ainda
+        não têm escolha própria — inclusive os que hoje estão usando um provedor para o qual você
+        não cadastrou chave nenhuma.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label className="text-xs">Provedor</Label>
+          <Select
+            value={provider}
+            onValueChange={(v) => {
+              setProvider(v);
+              setModelId("");
+            }}
+          >
+            <SelectTrigger data-testid="padrao-provider">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {dados.provedores.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
+          <Label className="text-xs">Modelo padrão (opcional)</Label>
+          {modelosDoProvider.length === 0 ? (
+            <Input
+              value={modelId}
+              onChange={(e) => setModelId(e.target.value)}
+              placeholder="deixe em branco para não fixar um modelo"
+              data-testid="padrao-modelo"
+            />
+          ) : (
+            <Select
+              value={modelId === "" ? SEM_MODELO_PADRAO : modelId}
+              onValueChange={(v) => setModelId(v === SEM_MODELO_PADRAO ? "" : v)}
+            >
+              <SelectTrigger data-testid="padrao-modelo">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SEM_MODELO_PADRAO}>Nenhum</SelectItem>
+                {modelosDoProvider.map((m) => (
+                  <SelectItem key={m.model_id} value={m.model_id}>
+                    {m.display_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
+      <Button
+        className="mt-3"
+        size="sm"
+        disabled={salvando}
+        onClick={() => void salvar()}
+        data-testid="padrao-salvar"
+      >
+        {salvando ? "Salvando…" : "Salvar padrão"}
+      </Button>
+    </Card>
+  );
+}
+
 function CartaoDoPonto({
   ponto,
   dados,
@@ -273,6 +401,27 @@ function CartaoDoPonto({
   const [salvando, setSalvando] = useState(false);
 
   const modelosDoProvider = dados.modelos.filter((m) => m.provider === provider);
+  // Só oferece o que o CATÁLOGO sabe que atende a exigência do ponto — dado do
+  // fabricante, igual à checagem de `validar-binding.ts`. Listar e deixar o
+  // Salvar recusar depois (ou, para "imagem", salvar calado e avisar só na
+  // hora do envio) é o defeito que trouxe esta tela a existir: o operador
+  // escolhia "claude-sonnet-5" para "Ver a imagem do cliente" a partir de uma
+  // lista que não distinguia, e só descobria a incompatibilidade DEPOIS de
+  // clicar em Salvar.
+  const modelosCompativeis = modelosDoProvider.filter((m) =>
+    modeloAtendeExigencia(ponto.exige, m),
+  );
+  // O modelo já salvo (mesmo incompatível, ou de antes desta checagem existir)
+  // não pode desaparecer da tela: o operador precisa VER o que está configurado
+  // hoje para decidir trocar. Some da lista, some da explicação.
+  const modeloAtualForaDaLista =
+    modelId !== "" && !modelosCompativeis.some((m) => m.model_id === modelId)
+      ? modelosDoProvider.find((m) => m.model_id === modelId)
+      : undefined;
+  const modelosParaMostrar = modeloAtualForaDaLista
+    ? [modeloAtualForaDaLista, ...modelosCompativeis]
+    : modelosCompativeis;
+  const escondeuAlgum = modelosCompativeis.length < modelosDoProvider.length;
   const credsDoProvider = dados.credenciais.filter((c) => c.provider === provider);
   // Endpoint próprio só faz sentido em provedor compatível com a API da OpenAI
   // — é a mesma condição que `lib/ai/pontos/provedores.ts` declara e que o
@@ -423,20 +572,42 @@ function CartaoDoPonto({
                   completa aparece sozinha depois da primeira sincronização.
                 </p>
               </>
+            ) : modelosParaMostrar.length === 0 ? (
+              <p className="mt-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                Nenhum modelo deste provedor {ponto.exige.imagem ? "enxerga imagem" : "sabe usar ferramentas"} —
+                escolha outro provedor para este ponto.
+              </p>
             ) : (
-              <Select value={modelId} onValueChange={setModelId}>
-                <SelectTrigger data-testid={`modelo-${ponto.id}`}>
-                  <SelectValue placeholder="escolha" />
-                </SelectTrigger>
-                <SelectContent>
-                  {modelosDoProvider.map((m) => (
-                    <SelectItem key={m.model_id} value={m.model_id}>
-                      {m.display_name}
-                      {ponto.exige.tools && !m.supports_tools ? " — sem ferramentas" : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <>
+                <Select value={modelId} onValueChange={setModelId}>
+                  <SelectTrigger data-testid={`modelo-${ponto.id}`}>
+                    <SelectValue placeholder="escolha" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modelosParaMostrar.map((m) => (
+                      <SelectItem key={m.model_id} value={m.model_id}>
+                        {m.display_name}
+                        {m.model_id === modeloAtualForaDaLista?.model_id
+                          ? ponto.exige.imagem && !m.supports_vision
+                            ? " — não enxerga imagem"
+                            : " — sem ferramentas"
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {escondeuAlgum && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Só aparecem aqui os modelos deste provedor que{" "}
+                    {ponto.exige.tools && ponto.exige.imagem
+                      ? "sabem usar ferramentas e enxergam imagem"
+                      : ponto.exige.imagem
+                        ? "enxergam imagem"
+                        : "sabem usar ferramentas"}{" "}
+                    — o que este ponto precisa.
+                  </p>
+                )}
+              </>
             )}
           </div>
 

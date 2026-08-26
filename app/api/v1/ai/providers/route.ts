@@ -179,6 +179,12 @@ export async function GET(): Promise<Response> {
     credenciais: credsRes.data ?? [],
     modelos,
     podeEditar: ROLE_RANK[org.role] >= ROLE_RANK.admin,
+    // O padrão da organização — o que vale em TODO ponto sem binding próprio e
+    // sem variável de ambiente (ver `decidirBinding`, ramo 4). Até aqui só
+    // existia leitura dele: quem quisesse trocar precisava configurar ponto a
+    // ponto em "Configuração avançada", ou editar `organizations.settings.llm`
+    // direto no banco. Ver `padrao/route.ts` para a escrita.
+    padrao: padraoDaOrganizacao,
   });
 }
 

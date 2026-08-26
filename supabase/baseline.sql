@@ -14299,4 +14299,24 @@ comment on column public.automation_rule_runs.status is
   'adiado = nada chegou ao cliente e ainda pode chegar — a regra espera a janela de envio do '
   'número, ou a mensagem ficou na fila do canal.';
 
+
+-- ---- o catálogo curado dizia que nenhum modelo enxerga imagem (migration 0176) ----
+--
+-- `supports_vision` nasceu `default false` (migration 0127) e nenhuma inserção
+-- do catálogo curado (`source='manual'`: Anthropic/OpenAI/Google) jamais setou
+-- `true` — inclusive nos flagships atuais. Efeito medido: o painel de
+-- Provedores avisava "claude-sonnet-5 não enxerga imagens" (falso), e
+-- `workers/media-derive-worker.ts` descartava fotos e comprovantes de clientes
+-- com um modelo que sabe ler imagem. Mesma regra que
+-- `lib/agent-engine/edge/llm/capabilities.ts` já declara como verdade do
+-- produto: as três famílias são NATIVE para imagem, exceto o que não é chat
+-- multimodal (embedding/tts/whisper/moderation — nenhuma linha manual casa
+-- isso hoje).
+update public.ai_models
+   set supports_vision = true
+ where source = 'manual'
+   and provider in ('anthropic', 'openai', 'google')
+   and model_id !~* '(embedding|tts|whisper|moderation)'
+   and supports_vision = false;
+
 notify pgrst, 'reload schema';

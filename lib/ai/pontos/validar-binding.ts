@@ -23,7 +23,7 @@
  * cada modelo sabe fazer, é `ai_models` — alimentado pelo catálogo do próprio
  * fabricante, não por heurística sobre o nome do modelo.
  */
-import { PONTO_POR_ID } from "./registro";
+import { PONTO_POR_ID, type CapacidadeExigida } from "./registro";
 
 /** O que o catálogo sabe sobre o modelo escolhido. */
 export interface CapacidadeDoModelo {
@@ -32,6 +32,25 @@ export interface CapacidadeDoModelo {
   supports_vision: boolean;
   /** `null` quando o modelo não está no catálogo — ver `motivoDesconhecido`. */
   conhecido: boolean;
+}
+
+/**
+ * A MESMA regra de compatibilidade que `validarBinding` aplica na escrita —
+ * extraída para o painel poder FILTRAR o seletor de modelo com ela, em vez de
+ * listar tudo e deixar o operador descobrir a incompatibilidade só depois de
+ * clicar em Salvar (era exatamente esse o defeito: o seletor de "Ver a imagem
+ * do cliente" oferecia qualquer modelo de chat do provedor, e só ao salvar a
+ * tela dizia "não enxerga imagens"). Pura e sem I/O — o painel ("use client")
+ * importa direto, sem trazer nada de servidor junto.
+ */
+export function modeloAtendeExigencia(
+  exige: CapacidadeExigida,
+  modelo: Pick<CapacidadeDoModelo, "supports_tools" | "supports_vision">,
+): boolean {
+  return (
+    (exige.tools !== true || modelo.supports_tools) &&
+    (exige.imagem !== true || modelo.supports_vision)
+  );
 }
 
 export type ResultadoDaValidacao =

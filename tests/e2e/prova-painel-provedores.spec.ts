@@ -150,6 +150,62 @@ test("F1 — trocar o modelo GRAVA, e a tela passa a mostrar o novo", async ({ p
   await page.screenshot({ path: "evidence/provedores/05-troca-valeu.png", fullPage: true });
 });
 
+test("F4 — trocar o PADRÃO DA ORGANIZAÇÃO muda um ponto que ninguém configurou", async ({ page }) => {
+  // Antes deste cartão, a única forma de tirar um ponto do que
+  // `organizations.settings.llm` (ou o trigger de banco) semeou era configurar
+  // CADA ponto em "Configuração avançada" — quem só tinha chave de um provedor
+  // diferente do padrão semeado ficava com pontos inteiros tentando falar com
+  // um provedor sem chave nenhuma, sem um lugar na tela para corrigir isso de
+  // uma vez. A prova aqui é о ponto que NINGUÉM tocou (`jailbreak_detect`, sem
+  // binding, sem herança do agente) mudando de provedor só porque o padrão da
+  // organização mudou — e não porque alguém configurou aquele ponto específico.
+  await page.goto("/app/ai/providers");
+  await page.waitForSelector('[data-testid="painel-de-provedores"]');
+
+  const cartaoPadrao = page.locator('[data-testid="padrao-da-organizacao"]');
+  await expect(cartaoPadrao).toBeVisible();
+
+  // Captura o padrão ATUAL pela API (não pela tela) para poder devolver a
+  // organização ao estado em que este teste a encontrou — outras specs desta
+  // suíte dependem do padrão semeado pela instalação.
+  const padraoOriginal = await page.evaluate(async () => {
+    const r = await fetch("/api/v1/ai/providers");
+    const j = await r.json();
+    return j.data.padrao as { provider: string; defaultModel: string | null };
+  });
+
+  await page.click('[data-testid="padrao-provider"]');
+  await page.getByRole("option", { name: /OpenAI/ }).click();
+  await page.click('[data-testid="padrao-modelo"]');
+  await page.getByRole("option", { name: /GPT-5\.6 Terra/ }).click();
+  await page.click('[data-testid="padrao-salvar"]');
+  await expect(page.getByText(/padrão da organização agora é/i)).toBeVisible({ timeout: 15_000 });
+  await page.screenshot({ path: "evidence/provedores/09-padrao-da-organizacao.png", fullPage: true });
+
+  // A PROVA: um ponto que NUNCA teve binding próprio (`jailbreak_detect`) passa
+  // a mostrar o novo padrão ao recarregar — pela mesma resolução que o runtime
+  // usa (`decidirBinding`, ramo 4), não por asserção sobre o toast.
+  await page.goto("/app/ai/providers");
+  await page.waitForSelector('[data-testid="painel-de-provedores"]');
+  await page.click('[data-testid="avancado-proteger"]');
+  const cartaoPonto = page.locator('[data-testid="ponto-jailbreak_detect"]');
+  await expect(cartaoPonto).toContainText("gpt-5.6-terra");
+  await expect(page.locator('[data-testid="origem-jailbreak_detect"]')).toContainText(
+    /padrão da organização/i,
+  );
+  await page.screenshot({ path: "evidence/provedores/10-ponto-herdou-o-novo-padrao.png", fullPage: true });
+
+  // Devolve a organização ao estado anterior — outras specs desta suíte
+  // presumem o padrão semeado pela instalação.
+  await page.evaluate(async (original) => {
+    await fetch("/api/v1/ai/providers/padrao", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ provider: original.provider, default_model: original.defaultModel }),
+    });
+  }, padraoOriginal);
+});
+
 test("F1/F3 — a catraca RECUSA modelo sem ferramentas no ponto que cria o lead", async ({ page }) => {
   // O desfecho que a abertura da OpenRouter torna possível: o agente conversa
   // bem, o cliente é atendido, e nada chega ao funil — sem erro na tela.
