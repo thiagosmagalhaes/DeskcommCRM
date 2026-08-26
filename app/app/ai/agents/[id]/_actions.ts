@@ -25,6 +25,7 @@ import { ROLE_RANK } from "@/lib/auth/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   agentMcpCreateSchema,
+  agentMcpPatchSchema,
   versionCreateSchema,
   versionPatchSchema,
   PUBLISH_ERROR_CODES,
@@ -59,6 +60,7 @@ async function ensureAdmin() {
 export async function saveAgentDraftAction(
   agentId: string,
   payload: unknown,
+  agentPatch?: unknown,
 ): Promise<ActionResult<{ version_id: string; version_number: number }>> {
   if (!UUID_RX.test(agentId)) return { ok: false, error: "invalid_request" };
   const guard = await ensureAdmin();
@@ -74,6 +76,22 @@ export async function saveAgentDraftAction(
     };
   }
   const v = parsed.data;
+
+  // `name`/`description`/`priority` moram em `ai_agents`, não em
+  // `ai_agent_versions` — o formulário edita os dois juntos, então este
+  // action persiste os dois. Sem isto, a tela mostrava "salvo" mas essas três
+  // colunas nunca mudavam de valor, e o botão Publicar ficava preso em
+  // "salve o rascunho antes" porque o form nunca convergia com a baseline.
+  let parsedAgentPatch: { name?: string; description?: string | null; priority?: number } | null =
+    null;
+  if (agentPatch !== undefined) {
+    const parsedPatch = agentMcpPatchSchema.safeParse(agentPatch);
+    if (!parsedPatch.success) {
+      return { ok: false, error: "validation_failed", details: parsedPatch.error.flatten() };
+    }
+    parsedAgentPatch = parsedPatch.data;
+  }
+
   const requestId = randomUUID();
   const admin = createAdminClient();
 
@@ -86,6 +104,26 @@ export async function saveAgentDraftAction(
     .maybeSingle();
   if (!agent) return { ok: false, error: "not_found" };
   if (agent.archived_at) return { ok: false, error: "agent_archived" };
+
+  if (parsedAgentPatch && Object.keys(parsedAgentPatch).length > 0) {
+    const { error: agentUpdateError } = await admin
+      .from("ai_agents")
+      .update(parsedAgentPatch)
+      .eq("id", agentId)
+      .eq("organization_id", activeOrg.orgId);
+    if (agentUpdateError) {
+      return { ok: false, error: "internal_error", message: agentUpdateError.message };
+    }
+    void audit({
+      action: "ai_agent.updated",
+      actorUserId: authUser.id,
+      organizationId: activeOrg.orgId,
+      resourceType: "ai_agent",
+      resourceId: agentId,
+      requestId,
+      metadata: { fields: Object.keys(parsedAgentPatch) },
+    });
+  }
 
   // Procura draft existente (latest por version_number)
   const { data: existingDraft } = await admin

@@ -361,7 +361,11 @@ export function AgentForm(props: Props) {
     setSaving(true);
     try {
       if (isEdit) {
-        const res = await saveAgentDraftAction(props.agent.id, toVersionPayload(form));
+        const res = await saveAgentDraftAction(props.agent.id, toVersionPayload(form), {
+          name: form.name,
+          description: form.description.trim() === "" ? null : form.description,
+          priority: form.priority,
+        });
         if (!res.ok) {
           toast.error(res.message ?? `Erro: ${res.error}`);
           return;
