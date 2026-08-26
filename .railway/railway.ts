@@ -49,7 +49,7 @@ export default defineRailway((ctx) => {
   });
 
   const app = service("App", {
-    source: image("ghcr.io/melgarafael/deskcommcrm:stable", {
+    source: image("ghcr.io/thiagosmagalhaes/deskcommcrm:stable", {
       autoUpdates: { type: "disabled" },
     }),
     replicas: 1,
@@ -81,7 +81,7 @@ export default defineRailway((ctx) => {
   });
 
   const worker = service("Worker", {
-    source: image("ghcr.io/melgarafael/deskcomm-worker:stable", {
+    source: image("ghcr.io/thiagosmagalhaes/deskcomm-worker:stable", {
       autoUpdates: { type: "disabled" },
     }),
     replicas: 1,
@@ -100,7 +100,7 @@ export default defineRailway((ctx) => {
   });
 
   const scheduler = service("Scheduler", {
-    source: image("ghcr.io/melgarafael/deskcomm-scheduler:stable", {
+    source: image("ghcr.io/thiagosmagalhaes/deskcomm-scheduler:stable", {
       autoUpdates: { type: "disabled" },
     }),
     replicas: 1,
@@ -111,7 +111,7 @@ export default defineRailway((ctx) => {
   });
 
   const initializer = service("Inicialização", {
-    source: image("ghcr.io/melgarafael/deskcomm-initializer:stable", {
+    source: image("ghcr.io/thiagosmagalhaes/deskcomm-initializer:stable", {
       autoUpdates: { type: "disabled" },
     }),
     replicas: 1,
