@@ -18,12 +18,19 @@ if [ -z "${INTERNAL_SECRET:-}" ]; then
   exit 1
 fi
 
-# Constante, não configuração: `app` é o nome do serviço na rede interna do
-# compose, e o scheduler não fala com mais nada. A primeira versão disto lia um
-# `SCHEDULER_APP_ORIGIN` que o compose nunca repassava e nenhum template
-# documentava — controle decorativo, que é pior que controle nenhum: quem o
-# encontrasse no código o definiria no `.env` e não veria efeito.
-APP_ORIGIN="http://app:3000"
+# No compose, `app` continua sendo o destino padrão. Plataformas em que cada
+# processo roda em uma rede própria (como Railway) informam a origem privada por
+# `SCHEDULER_APP_ORIGIN`; a barra final é removida para não gerar `//api/...`.
+APP_ORIGIN="${SCHEDULER_APP_ORIGIN:-http://app:3000}"
+APP_ORIGIN="${APP_ORIGIN%/}"
+
+case "$APP_ORIGIN" in
+  http://*|https://*) ;;
+  *)
+    echo "scheduler: SCHEDULER_APP_ORIGIN precisa começar com http:// ou https://." >&2
+    exit 1
+    ;;
+esac
 
 # O crond executa cada linha por `/bin/sh -c`, então o segredo é REAVALIADO pelo
 # shell na hora de disparar. Interpolá-lo cru dentro de aspas duplas fazia com
@@ -34,6 +41,7 @@ APP_ORIGIN="http://app:3000"
 # com o `whoami` EXECUTADO. Aqui o valor vai entre aspas SIMPLES, com as aspas
 # simples internas escapadas — dentro delas o sh não interpreta nada.
 SEGREDO_SEGURO="$(printf '%s' "$INTERNAL_SECRET" | sed "s/'/'\\\\''/g")"
+ORIGEM_SEGURA="$(printf '%s' "$APP_ORIGIN" | sed "s/'/'\\\\''/g")"
 
 # minuto|timeout|caminho — uma linha por cron. O caminho vai COMPLETO de
 # propósito: o literal `api/v1/cron/<rota>` é o contrato que
@@ -71,8 +79,8 @@ umask 077
 : > "$DESTINO"
 echo "$CRONS" | while IFS='|' read -r quando timeout rota; do
   [ -n "$rota" ] || continue
-  printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' "%s/%s" >/dev/null 2>&1\n' \
-    "$quando" "$timeout" "$SEGREDO_SEGURO" "$APP_ORIGIN" "$rota" >> "$DESTINO"
+  printf '%s curl -fsS -m%s -H '"'"'Authorization: Bearer %s'"'"' '"'"'%s/%s'"'"' >/dev/null 2>&1\n' \
+    "$quando" "$timeout" "$SEGREDO_SEGURO" "$ORIGEM_SEGURA" "$rota" >> "$DESTINO"
 done
 
 exec crond -f -l 2

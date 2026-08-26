@@ -40,11 +40,16 @@ mkdir -p "$TMP/bin"
 printf '#!/bin/sh\nexit 0\n' > "$TMP/bin/crond"
 chmod +x "$TMP/bin/crond"
 
-rodar() { # $1 = valor de INTERNAL_SECRET ("" = ausente)
+rodar() { # $1 = valor de INTERNAL_SECRET ("" = ausente), $2 = origem opcional
   local out="$TMP/crontab"
+  local origem="${2:-}"
   : > "$out"
   if [ -z "$1" ]; then
     env -u INTERNAL_SECRET PATH="$TMP/bin:$PATH" CRONTAB_PATH="$out" \
+      sh "$ENTRYPOINT" >"$TMP/saida" 2>&1
+  elif [ -n "$origem" ]; then
+    env INTERNAL_SECRET="$1" SCHEDULER_APP_ORIGIN="$origem" \
+      PATH="$TMP/bin:$PATH" CRONTAB_PATH="$out" \
       sh "$ENTRYPOINT" >"$TMP/saida" 2>&1
   else
     env INTERNAL_SECRET="$1" PATH="$TMP/bin:$PATH" CRONTAB_PATH="$out" \
@@ -62,6 +67,16 @@ check "as $ROTAS_CODIGO rotas do código estão no crontab (achei $ROTAS_CRONTAB
   test "$ROTAS_CODIGO" -eq "$ROTAS_CRONTAB"
 check "uma linha por cron, nenhuma vazia" \
   test "$(grep -c . "$TMP/crontab")" -eq "$(wc -l < "$TMP/crontab" | tr -d ' ')"
+check "o default da VPS continua apontando para app:3000" \
+  grep -q "http://app:3000/api/v1/cron/" "$TMP/crontab"
+
+echo "scheduler: o Railway consegue trocar somente a origem interna"
+RC="$(rodar 'segredo-simples' 'http://app.railway.internal:3000/')"
+check "aceita a origem privada do Railway" test "$RC" -eq 0
+check "remove a barra final sem criar //api" \
+  grep -q "http://app.railway.internal:3000/api/v1/cron/" "$TMP/crontab"
+check "não deixou URL com barra duplicada" \
+  sh -c '! grep -q "internal:3000//api" "$1"' _ "$TMP/crontab"
 
 echo "scheduler: o segredo atravessa o sh do crond intacto"
 # Os três caracteres que quebram interpolação ingênua, de uma vez só.

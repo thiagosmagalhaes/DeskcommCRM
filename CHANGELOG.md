@@ -10,6 +10,10 @@ Se você roda o DeskcommCRM numa VPS, **leia a seção da versão para a qual es
 
 ### Adicionado
 
+- **Fonte versionada para instalar no Railway.** A nova topologia IaC cria App, worker,
+  scheduler, WAHA com volumes persistentes, Redis e um inicializador one-shot que aplica o
+  banco e cria o primeiro dono. O template público ainda depende de uma release imutável e
+  de um ensaio completo no Railway antes de ser anunciado.
 - **Formulários do Respondi entram como lead, com as respostas na ficha.** Antes, quem ligava
   um formulário do Respondi ao CRM recebia um erro e **nenhum lead era criado** — o webhook
   chegava com as respostas dentro de uma estrutura que o CRM não sabia ler, e a captação era

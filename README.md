@@ -115,6 +115,17 @@ Caddy que não caberia. Num caso específico — proxy em `--network host`, como
 ele **pergunta em vez de adivinhar**, porque publicar atrás do proxy errado instala "com
 sucesso" um site mudo. Detalhes em [`hostgator-setup-kit/README.md`](hostgator-setup-kit/README.md#vps-que-já-vem-com-proxy-próprio-hostinger-coolify-dokploy).
 
+### E no Railway?
+
+Também é possível, inclusive com WAHA persistente. Nesse caminho você **não roda o
+`install.sh`**: o Railway cria App, worker, scheduler, WAHA, Redis e o inicializador do banco
+a partir de [`.railway/railway.ts`](.railway/railway.ts). O Supabase continua externo.
+
+O código do template está pronto para ensaio, mas o botão público só será anunciado depois
+de uma release com imagens imutáveis e de uma instalação nova validada no Railway. Veja o
+[guia de instalação no Railway](docs/deploy-railway/README.md) e as
+[instruções da fonte IaC](.railway/README.md).
+
 ### Primeiro acesso
 
 Abra `https://<seu-domínio>` (o cadeado leva ~1 min pra aparecer), entre com o admin, e tenha o
@@ -351,7 +362,7 @@ gh api repos/melgarafael/DeskcommCRM/branches/main/protection \
 | `invariants` | sobe um Postgres limpo, aplica o `baseline.sql` em modo **install** e depois em modo **update** — as duas passadas com `ON_ERROR_STOP=1`, que é o que torna a segunda uma prova de idempotência e não só um "terminou" —, e roda os invariantes de RBAC, atribuição, escopo, roteamento, follow-up, webhooks e automações |
 | `build-and-size` | `pnpm build` em Node 22 |
 | `e2e` | sobe Supabase local, aplica o `baseline.sql` e roda **48 das 49 specs** Playwright pelo frontend |
-| `imagens-ok` | reprova quando qualquer uma das três imagens Docker (`app`, `worker`, `scheduler`) não constrói — é o artefato que o self-hoster instala |
+| `imagens-ok` | reprova quando qualquer uma das quatro imagens Docker (`app`, `worker`, `scheduler`, `initializer`) não constrói — são os artefatos publicados para self-host |
 
 A única spec fora do `e2e` é `vps-fresh-onboarding` — ela precisa de WAHA + Redis + Resend + Nuvemshop de verdade. Ela é a **P0** da nossa doutrina de QA visual, então `e2e` verde **não** prova a jornada de instalação fresca; essa se prova numa VPS.
 
@@ -364,6 +375,7 @@ Entre os invariantes está o **teste de isolamento RLS**: cria 2 organizações,
 | Doc | O que tem |
 |---|---|
 | [`hostgator-setup-kit/README.md`](hostgator-setup-kit/README.md) | **Instalação self-host** — o kit, os scripts, as hospedagens com proxy próprio |
+| [`docs/deploy-railway/README.md`](docs/deploy-railway/README.md) | **Railway** — topologia, diferenças para VPS e estado do template |
 | [`docs/ATUALIZANDO.md`](docs/ATUALIZANDO.md) | **Como atualizar** sua instalação, em linguagem simples |
 | [`VISION.md`](VISION.md) | **Visão e posicionamento** — o que o projeto é, no que acredita e pra onde vai |
 | [`CHANGELOG.md`](CHANGELOG.md) | O que mudou em cada versão — **leia a seção da versão antes de atualizar** |
@@ -373,7 +385,7 @@ Entre os invariantes está o **teste de isolamento RLS**: cria 2 organizações,
 | [`docs/runbooks/deploy.md`](docs/runbooks/deploy.md) | Deploy em produção |
 | [`CLAUDE.md`](CLAUDE.md) | Convenções não-negociáveis (leitura obrigatória pra contribuir) |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Visão de 1 página da arquitetura |
-| [`docs/index.md`](docs/index.md) | Índice dos 157 documentos, com regra de precedência |
+| [`docs/index.md`](docs/index.md) | Índice dos 160 documentos, com regra de precedência |
 | [`docs/prd/`](docs/prd/) · [`docs/specs/`](docs/specs/) | PRDs e specs técnicas (schema SQL, payloads, MCP, governança) |
 
 ---
@@ -404,7 +416,7 @@ descobrir o resto como surpresa vermelha depois de horas de espera é a pior pri
 que este repositório sabe entregar.
 
 Dois gates obrigatórios **não** cabem aí e só rodam no CI: o `e2e` (precisa de Supabase local) e
-o `imagens-ok` (constrói as três imagens Docker). Verde na sua máquina não é verde no merge.
+o `imagens-ok` (constrói as quatro imagens Docker). Verde na sua máquina não é verde no merge.
 
 **Definition of Done:** typecheck zero, lint zero, testes relevantes verdes, RLS testada se toca tabela tenant-aware, audit log emitido em mutações, migration versionada **+ apêndice no `baseline.sql`** se muda schema (senão a mudança não chega em quem se auto-hospeda). Detalhes em [`CLAUDE.md`](CLAUDE.md#definition-of-done).
 

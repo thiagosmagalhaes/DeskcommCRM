@@ -162,7 +162,10 @@ describe("packaging — o artefato que o cliente instala", () => {
 
       const defaultDaPolitica = politica!.replace(/^\$\{[A-Z_]+:-(.+)\}$/, "$1");
       const imagem = bloco.match(/^\s{4}image:\s*(\S+)/m)?.[1] ?? "";
-      const tagDaImagem = imagem.replace(/^\$\{[A-Z_]+:-(.+)\}$/, "$1").split(":").pop();
+      const tagDaImagem = imagem
+        .replace(/^\$\{[A-Z_]+:-(.+)\}$/, "$1")
+        .split(":")
+        .pop();
       const tagEhMovel = ["latest", "main", "stable"].includes(tagDaImagem ?? "");
       avaliados += 1;
 
@@ -212,7 +215,12 @@ describe("packaging — o artefato que o cliente instala", () => {
     // O CI injeta os labels via docker/metadata-action, mas o build local do
     // docker-compose.build.yml não passa por ele. Sem LABEL no arquivo, essa
     // imagem sai sem origem nenhuma — e é justamente a que vira dívida numa VPS.
-    for (const arquivo of ["Dockerfile", "Dockerfile.worker", "Dockerfile.scheduler"]) {
+    for (const arquivo of [
+      "Dockerfile",
+      "Dockerfile.worker",
+      "Dockerfile.scheduler",
+      "Dockerfile.initializer",
+    ]) {
       const conteudo = fs.readFileSync(path.join(RAIZ, arquivo), "utf8");
       expect(conteudo, `${arquivo} sem org.opencontainers.image.source`).toContain(
         "org.opencontainers.image.source",
@@ -221,14 +229,17 @@ describe("packaging — o artefato que o cliente instala", () => {
     }
   });
 
-  it("o workflow publica as três imagens e injeta APP_VERSION", () => {
+  it("o workflow publica as quatro imagens e injeta APP_VERSION", () => {
     const wf = fs.readFileSync(path.join(RAIZ, ".github/workflows/publish-image.yml"), "utf8");
-    for (const imagem of ["deskcommcrm", "deskcomm-worker", "deskcomm-scheduler"]) {
+    for (const imagem of [
+      "deskcommcrm",
+      "deskcomm-worker",
+      "deskcomm-scheduler",
+      "deskcomm-initializer",
+    ]) {
       expect(wf, `publish-image.yml não publica '${imagem}'`).toContain(`name: ${imagem}`);
     }
-    expect(wf, "publish-image.yml não passa APP_VERSION como build-arg").toContain(
-      "APP_VERSION=",
-    );
+    expect(wf, "publish-image.yml não passa APP_VERSION como build-arg").toContain("APP_VERSION=");
     expect(wf, "publish-image.yml não cria o canal 'stable'").toContain("value=stable");
   });
 

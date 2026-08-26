@@ -1,0 +1,26 @@
+# Inicializador one-shot do Railway: aplica o mesmo baseline do self-host e
+# cria o primeiro dono. Não vira processo permanente e não entra na VPS.
+FROM node:22-alpine
+
+WORKDIR /app
+
+LABEL org.opencontainers.image.source="https://github.com/melgarafael/DeskcommCRM" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="DeskcommCRM initializer"
+
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
+
+RUN apk add --no-cache postgresql17-client \
+    && corepack enable \
+    && corepack prepare pnpm@9.15.9 --activate
+
+COPY .railway/initializer/package.json .railway/initializer/pnpm-lock.yaml ./
+RUN pnpm install --prod --frozen-lockfile
+
+COPY supabase/baseline.sql ./supabase/baseline.sql
+COPY scripts/bootstrap-owner.ts ./scripts/bootstrap-owner.ts
+COPY .railway/initializer/entrypoint.sh /usr/local/bin/deskcomm-initialize
+RUN chmod +x /usr/local/bin/deskcomm-initialize
+
+CMD ["/usr/local/bin/deskcomm-initialize"]

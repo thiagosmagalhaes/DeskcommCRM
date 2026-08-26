@@ -236,7 +236,7 @@ O não-negociável, em quatro linhas:
    instalar, ele **nunca é atualizado**.
 2. **Publicação é ato do CI.** Nunca da sua máquina: build ARM local não roda
    na VPS amd64 do cliente, e a falha só aparece no `up -d` dele. O job
-   `imagens-ok` reprova quando qualquer uma das três imagens não constrói, e
+   `imagens-ok` reprova quando qualquer uma das quatro imagens não constrói, e
    **é status check obrigatório desde 2026-08-13** — a branch protection tem
    `verify, build-and-size, invariants, e2e, imagens-ok`. (Este parágrafo dizia
    "ainda não é obrigatório" até 2026-08-14; a ativação era o passo final do
@@ -301,7 +301,7 @@ Checks **obrigatórios** na branch protection da `main` (verificado na configura
   ```
 
   **Por que não há mais número aqui.** O conserto que este parágrafo pedia era pôr a prosa sob gate — `tests/unit/e2e-cobertura-completa.test.ts` cobrando também o texto daqui. Tirar o número é melhor e mais barato: não há o que policiar, e a diferença entre disco e CI segue vigiada onde importa, no próprio teste, que reprova toda spec nova que não esteja em `SPECS_PARTE_*` ou em `FORA_DO_CI` **com motivo escrito**. Prosa que nenhum gate lê é prosa que diverge; prosa que não afirma número não tem como divergir.
-- **`imagens-ok`** (`publish-image.yml`) — reprova quando qualquer uma das três imagens Docker não constrói. **É obrigatório desde 2026-08-13**; este arquivo dizia o contrário em outro parágrafo (ver a doutrina de packaging acima, já corrigida).
+- **`imagens-ok`** (`publish-image.yml`) — reprova quando qualquer uma das quatro imagens Docker não constrói. **É obrigatório desde 2026-08-13**; este arquivo dizia o contrário em outro parágrafo (ver a doutrina de packaging acima, já corrigida).
 
 Todos os **cinco** são **obrigatórios** — medido em 2026-08-14 na branch protection:
 

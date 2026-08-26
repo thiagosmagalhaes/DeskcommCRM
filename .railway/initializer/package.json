@@ -1,0 +1,11 @@
+{
+  "name": "deskcomm-railway-initializer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.9",
+  "dependencies": {
+    "@supabase/supabase-js": "2.112.3",
+    "tsx": "4.23.12"
+  }
+}

@@ -10,9 +10,9 @@ audited_against: origin/main @ 789dfa6 (v1.0.0, 2026-07-27)
 
 # Índice da documentação — DeskcommCRM
 
-Mapa dos **154** arquivos `.md` de `docs/`, espalhados por **20** subpastas — medido em
-2026-08-14, com as réguas ao lado: `git ls-files 'docs/**/*.md' | wc -l` e
-`git ls-files 'docs/**/*.md' | sed 's|^docs/||;s|/.*||' | sort -u | wc -l`. Os dois números
+Mapa dos **160** arquivos `.md` de `docs/`, espalhados por **22** subpastas — medido em
+2026-08-26, com as réguas ao lado: `git ls-files 'docs/**/*.md' | wc -l` e
+`git ls-files 'docs/**/*.md' | awk -F/ 'NF >= 3 {print $2}' | sort -u | wc -l`. Os dois números
 estavam errados (149 e 24) e a segunda régua nem existia — é a mesma classe que
 [`audits/2026-08-14-afirmacoes-de-estado.md`](audits/2026-08-14-afirmacoes-de-estado.md)
 cataloga. Existe porque a documentação cresceu sem ponto
@@ -88,7 +88,7 @@ Detalham schema SQL e payloads exatos. **Consulte antes de modelar qualquer cois
 | [`doctrine/restricao-de-canal.md`](doctrine/restricao-de-canal.md) | Auto-restrição × hetero-restrição de canais externos; contrato de parâmetros derivado |
 | [`doctrine/separacao-fala-e-operacao.md`](doctrine/separacao-fala-e-operacao.md) | Vocabulário interno nunca vaza para o cliente |
 | [`doctrine/packaging.md`](doctrine/packaging.md) | **Doutrina de Packaging — a LEI.** 8 invariantes + política de canais + checklist de release (item 15 do DoD) |
-| [`adr/0001-packaging-e-distribuicao.md`](adr/0001-packaging-e-distribuicao.md) | ADR do packaging: namespace, os 3 packages, e o que foi recusado |
+| [`adr/0001-packaging-e-distribuicao.md`](adr/0001-packaging-e-distribuicao.md) | ADR do packaging: namespace, os 4 packages, e o que foi recusado |
 | [`architecture/agent-turn.html`](architecture/agent-turn.html) | Diagrama do turno do agente (inbound → guardrails → outbound) |
 | [`architecture/teto-de-orcamento.architecture.json`](architecture/teto-de-orcamento.architecture.json) | **Mapa vivo do teto de gasto com IA** — quem alimenta o gate, o que a parada NÃO desfaz sozinha, e o laço de retorno (invariante 7) |
 | [`release/teto-de-orcamento.md`](release/teto-de-orcamento.md) | **Nota de release para quem opera uma VPS** — o que muda, o que fazer (nada), a troca de rótulo de R$ para US$ e como ligar a proteção |
@@ -114,6 +114,7 @@ acessibilidade).
 | [`SETUP.md`](SETUP.md) | Guia completo de env vars e setup local |
 | [`deploy-selfhost/README.md`](deploy-selfhost/README.md) | Self-host genérico |
 | [`deploy-hostgator/README.md`](deploy-hostgator/README.md) | VPS HostGator (`install.sh`, `backup.sh`, `reset-mfa.sh`) |
+| [`deploy-railway/README.md`](deploy-railway/README.md) | Railway — App, worker, scheduler, WAHA persistente, Redis e inicialização do banco |
 | [`DEPLOY-CHECKLIST.md`](DEPLOY-CHECKLIST.md) | Checklist de deploy |
 | [`ATUALIZANDO.md`](ATUALIZANDO.md) | `update.sh`, `restore.sh`, `healthcheck.sh` |
 | [`runbooks/deploy.md`](runbooks/deploy.md) | **Deploy em produção — os dois `-f` do compose, verificação pós-deploy** |

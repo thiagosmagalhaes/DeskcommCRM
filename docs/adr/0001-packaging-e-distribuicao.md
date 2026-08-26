@@ -60,10 +60,12 @@ sozinho, e o namespace antigo mantido até o parque ter migrado — nunca um cor
 | `deskcommcrm` | "o que a pessoa instala?" | existe desde 2026-07-02 |
 | `deskcomm-worker` | "o que roda 24/7 fora do request?" | **criado aqui** |
 | `deskcomm-scheduler` | "o que dispara os crons?" | **criado aqui** |
+| `deskcomm-initializer` | "quem prepara banco e primeiro dono fora da VPS?" | **criado para Railway** |
 
-Os três passam no teste de fronteira: consumidor distinto (contêiner próprio), topologia de
-execução própria (long-running, cron, request/response), e custo de build que hoje cai no
-cliente. O ciclo de release é **acoplado** — os três sobem juntos, com a mesma tag —, porque
+Os quatro passam no teste de fronteira: consumidor distinto (contêiner próprio), topologia de
+execução própria (long-running, cron, request/response ou one-shot), e custo de build que não
+deve cair no cliente. O ciclo de release é **acoplado** — os quatro sobem juntos, com a mesma
+tag —, porque
 compartilham o mesmo repositório e a mesma migração de banco; versioná-los independentemente
 criaria matriz de compatibilidade sem consumidor para ela.
 
@@ -127,7 +129,7 @@ vira nomeável e observável; e a atualização vira ato reversível por uma lin
 branch protection — o que não pode acontecer antes deste trabalho estar na `main`, sob pena de
 travar todos os PRs abertos. Enquanto isso, o job roda em PR e informa, mas não bloqueia.
 
-**Pagamos:** três imagens para publicar em vez de uma (mesmo run do CI, sem custo de
+**Pagamos:** quatro imagens para publicar em vez de uma (mesmo run do CI, sem custo de
 processo); e uma regra a mais no DoD.
 
 **Assumimos:** que a imutabilidade das tags de versão é garantia **de processo**, não de

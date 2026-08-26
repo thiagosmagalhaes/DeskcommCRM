@@ -101,8 +101,8 @@ OCI — no mínimo `source`, `revision`, `version`, `licenses` — e é constru�
   Rastreabilidade:** sem `org.opencontainers.image.revision` não existe resposta para "que
   código está rodando neste cliente?", e o suporte vira adivinhação.
 - **Verificação:** o job **`imagens-ok`** de `publish-image.yml` reprova quando qualquer uma
-  das três imagens não constrói. Ele existe porque a matriz gera um nome de check por imagem,
-  e exigir os três pelo nome faria uma quarta imagem, um dia, escapar do gate em silêncio.
+  das quatro imagens não constrói. Ele existe porque a matriz gera um nome de check por imagem,
+  e exigir cada uma pelo nome faria uma quinta imagem, um dia, escapar do gate em silêncio.
 
   > **Ativado.** `imagens-ok` **é** required check da `main`. Medido em 2026-08-14:
   >
@@ -141,7 +141,7 @@ seria recusar instalar por não conseguir resolver um número:
 2. **Quem preenche o `.env` à mão** a partir do template recebe `stable` — o piso seguro
    para quem não vai rodar a entrevista. `--yes` com o template preserva esse valor.
 
-O que **nenhum** caminho faz é pinar numa versão sem antes conferir que as três imagens
+O que **nenhum** caminho faz é pinar numa versão sem antes conferir que as quatro imagens
 existem lá: a tag do git nasce minutos antes das imagens, e `deskcomm-worker:1.2.1` nunca
 vai existir porque a v1.2.1 é anterior à criação desse pacote.
 
@@ -405,16 +405,16 @@ do banco. É o passo que mais trava na estreia de uma imagem nova.
 [ ] 5. `git tag vX.Y.Z && git push origin vX.Y.Z` — a partir de um commit da `main`
 [ ] 6. O run de publicação ficou verde:
        gh run list --workflow=publish-image.yml --limit 3
-[ ] 7. As TRÊS imagens existem E são públicas nesta versão:
-       for i in deskcommcrm deskcomm-worker deskcomm-scheduler; do
-         echo "$i: $(ghcr_status $i X.Y.Z)"; done      → 200 nas três
+[ ] 7. As QUATRO imagens existem E são públicas nesta versão:
+       for i in deskcommcrm deskcomm-worker deskcomm-scheduler deskcomm-initializer; do
+         echo "$i: $(ghcr_status $i X.Y.Z)"; done      → 200 nas quatro
        403 em alguma? Torne o pacote público ANTES de seguir
 [ ] 8. A imagem reporta a versão certa:
        docker run --rm ghcr.io/melgarafael/deskcommcrm:X.Y.Z \
          node -e 'console.log(process.env.APP_VERSION)'   → X.Y.Z
 [ ] 9. `gh release create vX.Y.Z` com as notas do CHANGELOG
-[ ] 10. SÓ AGORA: `stable` e X.Y.Z são o MESMO digest, nas três imagens:
-        for i in deskcommcrm deskcomm-worker deskcomm-scheduler; do
+[ ] 10. SÓ AGORA: `stable` e X.Y.Z são o MESMO digest, nas quatro imagens:
+        for i in deskcommcrm deskcomm-worker deskcomm-scheduler deskcomm-initializer; do
           for t in X.Y.Z stable; do
             echo -n "$i:$t "; docker buildx imagetools inspect \
               ghcr.io/melgarafael/$i:$t --format '{{.Manifest.Digest}}'; done; done
@@ -422,7 +422,7 @@ do banco. É o passo que mais trava na estreia de uma imagem nova.
         Não bateu? Alguma coisa republicou depois do push da tag. NÃO siga:
         um canal apontando para build diferente da versão é o invariante 3
         quebrado dentro de casa.
-[ ] 11. Apagar tags de branch dos três pacotes — `docs-doutrina-packaging` e
+[ ] 11. Apagar tags de branch dos quatro pacotes — `docs-doutrina-packaging` e
         qualquer outra que tenha nascido de um `workflow_dispatch` de ensaio.
         Tag de branch é artefato de trabalho: se ficar, vira canal órfão que
         alguém pina por engano achando que é release, e ela nunca mais se move.

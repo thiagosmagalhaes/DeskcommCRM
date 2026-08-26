@@ -77,7 +77,7 @@ Resend + Nuvemshop; é a P0 da doutrina de QA) — ou seja, `e2e` verde não pro
 instalação fresca. `followup-journey`, `webhooks` e `capacidades-do-agente` estiveram fora e
 **voltaram**: rodam hoje (`e2e.yml`, listas `SPECS_PARTE_1`/`SPECS_PARTE_2`).
 
-`.github/workflows/publish-image.yml`: `imagens-ok` = as três imagens Docker constroem. **Obrigatório
+`.github/workflows/publish-image.yml`: `imagens-ok` = as quatro imagens Docker constroem. **Obrigatório
 desde 2026-08-13.**
 
 **Os cinco são checks obrigatórios** na branch protection da `main` — medido em 2026-08-14 @ `741c4ec8`:
