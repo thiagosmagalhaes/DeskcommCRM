@@ -123,6 +123,19 @@ function FlowCanvasInner({ flowId, initialData }: Props) {
     },
     [setNodes],
   );
+  // O painel era só ADIÇÃO: a paleta cria nó, e nada no card nem no painel
+  // lateral tirava um. A tecla Delete do React Flow existe, mas sem botão
+  // visível ninguém descobre — "só consigo adicionar" é exatamente esse
+  // sintoma. Tira o nó E toda aresta presa nele, senão a aresta sobrevive
+  // apontando para um id que não existe mais.
+  const deleteNode = useCallback(
+    (id: string) => {
+      setNodes((nds) => nds.filter((n) => n.id !== id));
+      setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+      setSelectedNodeId((sel) => (sel === id ? null : sel));
+    },
+    [setNodes, setEdges],
+  );
   const updateEdgeCondition = useCallback(
     (id: string, condition: FlowEdge["condition"]) => {
       setEdges((eds) =>
@@ -327,6 +340,7 @@ function FlowCanvasInner({ flowId, initialData }: Props) {
                 node={selectedNode}
                 onChange={(patch) => updateNodeData(selectedNode.id, patch)}
                 ramosLigados={ramosLigadosDoSelecionado}
+                onDelete={() => deleteNode(selectedNode.id)}
               />
             </div>
           </aside>

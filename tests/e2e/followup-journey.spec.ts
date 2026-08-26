@@ -284,6 +284,25 @@ test.describe("followup — jornada completa (Task 8.3)", () => {
     await moveNodeTo(page, endNoReplyId, ...at(260, 650));
     await moveNodeTo(page, endFallbackId, ...at(460, 650));
 
+    // O painel do nó era só ADIÇÃO — nada removia um nó depois de colocado na
+    // tela (a única saída era a tecla Delete do React Flow, que ninguém
+    // descobre sem um botão). Prova o caminho inteiro: adiciona um nó
+    // descartável, confirma que ele existe, exclui pelo painel, confirma que
+    // sumiu do canvas — sem mexer nos nós que o resto do teste usa.
+    await page.getByTestId("palette-add-wait").click();
+    const scratchWaitId = (await nodeIdsByPrefix(page, "wait")).find((id) => id !== waitId);
+    if (!scratchWaitId) throw new Error("nó descartável não apareceu no canvas");
+    // Longe dos outros nós já posicionados, senão o clique de seleção arrisca
+    // acertar o card errado onde as posições se sobrepõem.
+    await moveNodeTo(page, scratchWaitId, ...at(650, 50));
+    await expect(page.locator(`[data-testid="node-card-${scratchWaitId}"]`)).toBeVisible();
+    await page.locator(`[data-testid="node-card-${scratchWaitId}"]`).click();
+    await page.getByTestId("node-delete-button").click();
+    await expect(page.locator(`[data-testid="node-card-${scratchWaitId}"]`)).toHaveCount(0);
+    await expect(page.getByTestId("node-config-sheet")).toHaveCount(0);
+    // O nó original sobrevive — a exclusão não varreu o tipo inteiro.
+    await expect(page.locator(`[data-testid="node-card-${waitId}"]`)).toBeVisible();
+
     // Configura: classify → 1 classe "positivo" (troca o default hot/cold);
     // action → prompt_hint real; end-positivo → outcome "Convertido" (os
     // outros 2 fins ficam no default "Esgotado", coerente com no_reply/fallback).
