@@ -264,11 +264,23 @@ describe("nascimento do lead", () => {
 
 /**
  * A fiação. Os casos acima provam que o passo compartido FAZ a coisa certa;
- * estes provam que os dois canais o CHAMAM — que é o defeito original.
+ * estes provam que os TRÊS canais o CHAMAM — que é o defeito original.
+ *
+ * O canal oficial (`meta_cloud`) ficou de fora desta rede por meses: o
+ * cabeçalho do arquivo mede "QR 806, oficial 0" e a extração para
+ * `pos-entrada.ts` foi conectada no canal por QR e no Zernio, mas
+ * `lib/channels/meta/ingest.ts` nunca importou o passo compartilhado — o
+ * mesmo defeito original, sobrevivendo no terceiro canal porque nenhum teste
+ * olhava para ele.
  */
-describe("os dois canais usam o mesmo passo", () => {
+describe("os três canais usam o mesmo passo", () => {
   const ZERNIO = readFileSync("lib/channels/zernio/ingest.ts", "utf8");
   const WAHA = readFileSync("lib/waha/ingest.ts", "utf8");
+  const META = readFileSync("lib/channels/meta/ingest.ts", "utf8");
+
+  it("o canal oficial (meta_cloud) delega no compartilhado", () => {
+    expect(META).toMatch(/await aplicarEfeitosPosEntrada\(admin, \{/);
+  });
 
   it("o canal intermediado chama nos DOIS caminhos de inserção", () => {
     // A ingestão resolve a conversa por dois caminhos — thread conhecida e

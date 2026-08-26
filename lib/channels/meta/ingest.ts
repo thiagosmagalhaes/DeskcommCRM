@@ -25,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { ARCHIVED_AT, queryTolerantToMissingArchived } from "../archived";
 import { phoneLookupVariants } from "../phone-variants";
+import { aplicarEfeitosPosEntrada } from "../pos-entrada";
 import type { ChannelTenantScope } from "../types";
 import type { InboundMessageEvent } from "./webhook";
 
@@ -120,7 +121,7 @@ function previewOf(e: InboundMessageEvent): string {
 export async function ingestMetaInbound(
   admin: Admin,
   e: InboundMessageEvent,
-  dono: ChannelTenantScope,
+  dono: ChannelTenantScope & { requestId?: string },
 ): Promise<IngestOutcome> {
   let sessao: { id: string; organization_id: string } | null;
   try {
@@ -205,6 +206,23 @@ export async function ingestMetaInbound(
     p_preview: previewOf(e),
     p_at: e.sentAt.toISOString(),
   } as never);
+
+  // Opt-out, nascimento do lead e despacho do agente — o MESMO passo que os
+  // outros dois canais chamam. Sem isto, este era exatamente o defeito medido
+  // em produção que motivou criar `pos-entrada.ts` (cabeçalho do arquivo):
+  // "ai_agent.dispatch_requested QR 806, oficial 0" — o canal oficial gravava
+  // a mensagem e nunca acordava o agente, sem erro visível em lugar nenhum.
+  await aplicarEfeitosPosEntrada(admin, {
+    organizationId: orgId,
+    contactId: contactId as string,
+    conversationId: conversationId as string,
+    messageId: (inserida as { id: string } | null)?.id ?? null,
+    channelSessionId: sessao.id,
+    texto: e.type === "text" ? (e.text ?? null) : null,
+    nomeDoContato: e.profileName ?? null,
+    requestId: dono.requestId,
+    origem: "meta_webhook",
+  });
 
   return {
     status: "ingested",

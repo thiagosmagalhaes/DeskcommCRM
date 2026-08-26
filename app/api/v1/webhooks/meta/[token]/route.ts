@@ -118,7 +118,10 @@ export async function POST(req: NextRequest, ctx: RouteCtx): Promise<NextRespons
       // resolvia a sessão só pelo `phone_number_id` do payload — e duas
       // organizações com o mesmo número faziam a mensagem ser descartada para
       // as duas, com 200 na resposta (issue #236).
-      const r = await ingestMetaInbound(admin, e, { organizationId: session.organizationId });
+      const r = await ingestMetaInbound(admin, e, {
+        organizationId: session.organizationId,
+        requestId,
+      });
       desfechos.push(r.status);
       if (r.status === "failed" || r.status === "no_session") {
         // 2xx continua (a Meta re-entregaria em loop), mas a falha NÃO fica muda:
