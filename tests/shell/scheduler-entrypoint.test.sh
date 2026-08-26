@@ -98,6 +98,23 @@ check "sai com código 1" test "$RC" -eq 1
 check "explica o motivo na saída" grep -q "INTERNAL_SECRET" "$TMP/saida"
 check "não deixou crontab pela metade" test ! -s "$TMP/crontab"
 
+echo "scheduler: SCHEDULER_APP_ORIGIN — default preservado, override alcançável"
+OUT_DEFAULT="$TMP/crontab-default"
+: > "$OUT_DEFAULT"
+env -u SCHEDULER_APP_ORIGIN INTERNAL_SECRET='segredo-simples' PATH="$TMP/bin:$PATH" \
+  CRONTAB_PATH="$OUT_DEFAULT" sh "$ENTRYPOINT" >/dev/null 2>&1
+check "sem a variável, continua indo pro host do compose (app:3000)" \
+  grep -q 'http://app:3000/' "$OUT_DEFAULT"
+
+OUT_RAILWAY="$TMP/crontab-railway"
+: > "$OUT_RAILWAY"
+env SCHEDULER_APP_ORIGIN='https://minha-app.up.railway.app' INTERNAL_SECRET='segredo-simples' \
+  PATH="$TMP/bin:$PATH" CRONTAB_PATH="$OUT_RAILWAY" sh "$ENTRYPOINT" >/dev/null 2>&1
+check "com a variável, o crontab aponta pro host declarado" \
+  grep -q 'https://minha-app.up.railway.app/' "$OUT_RAILWAY"
+check "e não sobrou nenhuma linha ainda apontando pro compose" \
+  test "$(grep -c 'app:3000' "$OUT_RAILWAY")" -eq 0
+
 if [ "$fail" -eq 0 ]; then
   echo "OK — todas as provas passaram."
 else

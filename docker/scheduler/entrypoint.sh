@@ -18,12 +18,21 @@ if [ -z "${INTERNAL_SECRET:-}" ]; then
   exit 1
 fi
 
-# Constante, não configuração: `app` é o nome do serviço na rede interna do
-# compose, e o scheduler não fala com mais nada. A primeira versão disto lia um
-# `SCHEDULER_APP_ORIGIN` que o compose nunca repassava e nenhum template
-# documentava — controle decorativo, que é pior que controle nenhum: quem o
-# encontrasse no código o definiria no `.env` e não veria efeito.
-APP_ORIGIN="http://app:3000"
+# `app:3000` é o default — nome do serviço na rede interna do compose, o
+# destino de QUASE toda instalação (o kit self-host é docker-compose, e o
+# `.env` dele nunca declara esta chave, então o comportamento de sempre não
+# muda). A primeira versão disto lia um `SCHEDULER_APP_ORIGIN` que o compose
+# nunca repassava e nenhum template documentava — controle decorativo, pior
+# que controle nenhum.
+#
+# O que mudou: existe agora um destino real, fora do compose, sem a rede
+# interna dele — quem sobe `app` e `scheduler` como serviços separados num
+# PaaS (Railway e afins) não tem um host `app` para resolver, e o scheduler
+# não teria como alcançar o app de jeito nenhum sem um jeito de apontar para
+# a URL pública dele. `SCHEDULER_APP_ORIGIN` volta, mas agora com consumidor
+# de verdade: quem sobe fora do compose declara a variável no painel do
+# próprio PaaS (não no `.env` do repo, que continua sem ela).
+APP_ORIGIN="${SCHEDULER_APP_ORIGIN:-http://app:3000}"
 
 # O crond executa cada linha por `/bin/sh -c`, então o segredo é REAVALIADO pelo
 # shell na hora de disparar. Interpolá-lo cru dentro de aspas duplas fazia com
