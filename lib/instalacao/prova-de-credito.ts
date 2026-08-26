@@ -41,8 +41,9 @@ interface Requisicao {
 }
 
 /**
- * A menor geração possível em cada provedor. `max_tokens: 1` porque o objetivo
- * é atravessar a cobrança, não obter texto.
+ * A menor geração possível em cada provedor: o parâmetro de teto de tokens de
+ * cada um cravado em 1, porque o objetivo é atravessar a cobrança, não obter
+ * texto.
  */
 export function montarRequisicaoDeProva(
   provider: string,
@@ -66,7 +67,13 @@ export function montarRequisicaoDeProva(
       return {
         url: "https://api.openai.com/v1/chat/completions",
         headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-        body: { model: modelo, max_tokens: 1, messages: msg },
+        // `max_completion_tokens`, não `max_tokens`: os modelos de raciocínio
+        // (o1/o3, família gpt-5 e além) recusam `max_tokens` com
+        // `unsupported_parameter` — a chave e o saldo estavam certos, só o
+        // corpo da prova é que falava o parâmetro antigo. `max_completion_tokens`
+        // é aceito por TODOS os modelos de chat completions atuais (substituiu
+        // `max_tokens` para a família inteira, não só para os de raciocínio).
+        body: { model: modelo, max_completion_tokens: 1, messages: msg },
       };
     case "openrouter":
       return {
