@@ -140,11 +140,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   const admin = createAdminClient();
   const cifrado = await encryptWebhookSecret(admin, token);
   if (!cifrado) {
-    // Sem a GUC de cifra configurada, gravar o token em claro seria pior que
-    // recusar. O operador precisa saber que falta uma configuração de servidor.
+    // Sem a chave de cifra configurada, gravar o token em claro seria pior que
+    // recusar. Esta cifra protege credenciais de qualquer canal, não apenas
+    // integrações de e-commerce.
     return fail(
       "invalid_request",
-      "cifra indisponível nesta instalação (GUC app.nuvemshop_oauth_key ausente) — o token não foi gravado",
+      "cifra indisponível nesta instalação (chave de cifra de segredos ausente) — o token não foi gravado",
       422,
       { requestId },
     );

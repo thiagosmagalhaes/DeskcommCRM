@@ -35,16 +35,16 @@ insert into supabase_migrations.schema_migrations (version) values
 on conflict (version) do nothing;
 ```
 
-**Isto não conserta `supabase db reset` em banco novo**, e não é o que esta mudança promete:
-a cadeia de `migrations/` não sobe do zero por outro motivo (quebra na `0010`, que altera
-tabelas que as migrations-stub `0001`–`0009` nunca criaram — medido: 21 aplicam, 80 falham).
-O caminho de instalação suportado é o `supabase/baseline.sql`, que é o que o kit self-host
-aplica.
+O bootstrap `0000_baseline_schema` faz a cadeia de `migrations/` começar pelo schema completo
+do `baseline.sql`; `supabase db reset` e `supabase db push --local` passam em banco novo.
+As migrations históricas `0001`–`0009` continuam registradas como stubs por compatibilidade
+com o histórico remoto, e as incrementais seguintes permanecem reaplicáveis.
 
 ## Applied
 
 | Version | Name | Description |
 |---|---|---|
+| `20260428190000` | `0000_baseline_schema` | Bootstrap do schema completo do `baseline.sql` para permitir replay local das migrations históricas e incrementais |
 | `20260428195354` | `0001_platform_base` | organizations, user_organizations, platform_admins, api_tokens, api_audit_log, user_recovery_codes, idempotency_keys + RLS helpers (fn_user_org_ids, fn_is_platform_admin, fn_user_role_in_org, fn_role_at_least) |
 | `20260428195513` | `0002_event_log_and_compat` | event_log + emit_event/fn_log_event helpers + compat aliases (fn_set_updated_at, fn_user_role_in returning int) |
 | `20260428195708` | `0003_customer_360` | contacts (CPF encrypted), crm_pipelines, crm_stages, crm_leads, crm_lead_activities, crm_lead_links, merge_queue + 5 domain triggers |

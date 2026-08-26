@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:54324";
+const MAILPIT_URL = process.env.MAILPIT_URL ?? "http://127.0.0.1:55324";
 
 /** Parser mínimo de .env.local (os specs rodam fora do runtime Next). */
 export function loadEnvLocal(): Record<string, string> {
