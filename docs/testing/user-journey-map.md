@@ -96,7 +96,7 @@ fonte só (`lib/onboarding/passos.ts`) — eram três listas que discordavam. Ga
 |---|------|-------------|
 | J3.1 | Agente default do onboarding aparece em `/app/ai/agents` | lista consistente |
 | J3.2 | Criar agente novo pelo builder: draft → publicar | bloqueios de publish EXPLICADOS (credencial, número) |
-| J3.3 | Knowledge sources: 4 slots visíveis, status honesto | sem "Em breve" enganoso no caminho principal |
+| J3.3 | Knowledge sources: 5 slots visíveis (faq/policy/documents/conversations/catalog), status honesto | sem "Em breve" enganoso no caminho principal |
 | J3.4 | Mensagem inbound → bot responde (WAHA + AI key real) | resposta chega na conversa, `sent_via='bot'` |
 | J3.5 | Bot NÃO responde quando humano assumiu (claim) | guard `assignee_kind='user'` |
 | J3.6 | Handoff G1 ("quero falar com humano") | conversa vai pra fila humana, aviso visível |
@@ -109,6 +109,7 @@ fonte só (`lib/onboarding/passos.ts`) — eram três listas que discordavam. Ga
 | J3.13 | A escolha sobrevive ao salvar e recarregar | o servidor aceita a lista (mesmo teto de 20 da tela) e o estado volta igual · **PASS** |
 | J3.14 | Ver se o que está ligado está funcionando (aba Capacidades) | usos, falhas, quantos vieram de teste, última vez — e o que fazer com cada número · **PASS** (números escritos pelo emissor real de audit) |
 | J3.15 | Teto de 20 recusa a passagem, explicando em português | **NÃO EXERCITÁVEL HOJE**: com 16 capacidades no catálogo, ligar tudo não chega a 20. Coberto por teste unitário; vira exercitável quando as waves de capacidades entregarem |
+| J3.16 | Documentos: subir vários .md de uma vez, ver a lista, remover um sem afetar os demais | fonte 'documents' é criada/reaproveitada, cada arquivo listado individualmente, reenvio do mesmo nome substitui o conteúdo. **NÃO PROVADO PELA TELA AINDA** — coberto por unit tests de rota/worker + `pnpm test:db` (RLS/baseline), mas sem passo Playwright dirigindo o browser real; falta a prova por tela que a doutrina de QA Visual exige |
 
 ## J4 — CRM e Pipelines `[P1]`
 
@@ -407,7 +408,7 @@ Critério: nenhuma tela quebra, nenhum stack trace, nenhum texto de erro cru.
 | M3 | ~~README self-host aponta repo/imagem `deskcommcrm/*`; kit usa `melgarafael/*`~~ **CORRIGIDO 2026-08-13** — era um `git clone` de uma org que não existe (404) em `docs/deploy-selfhost/README.md:26`. Uma consultoria externa leu essa string e concluiu que o compose apontava para uma org desvinculada; o compose sempre apontou para `melgarafael`. | explorer webhooks | — |
 | M4 | `INVITE_TOKEN_SECRET` ausente → fallback `"dev-fallback"` → convite forjável em VPS mal configurada | explorer CRM/time | Alta (segurança) |
 | M5 | AI Gateway key ausente → bot mudo sem NENHUM feedback na UI | explorer IA | Média |
-| M6 | Knowledge sources: botões de upload/configurar são stubs "Em breve" | explorer IA | Média |
+| M6 | ~~Knowledge sources: botões de upload/configurar são stubs "Em breve"~~ **PARCIALMENTE CORRIGIDO 2026-08-27** — "Configurar FAQ/Política" (texto colado) já eram reais antes desta linha ser escrita; o slot novo "Documentos" (upload em lote de .md, migration 0177) tem upload/lista/remoção reais. Continuam stub: "Editar conteúdo" (FAQ) e "Upload novo arquivo" (Política, PDF) — ver `components/ai/KnowledgeSourceCard.tsx` | explorer IA | Média |
 | M7 | Enviar mensagem com canal não-WORKING fica `queued` silencioso | explorer WhatsApp | Média |
 | M8 | Kanban: colisão de fractional index aborta drag sem feedback | explorer CRM | Baixa |
 | M9 | Toasts com códigos crus (`db_error`, `invalid_input`) no onboarding | explorer onboarding | Baixa |
@@ -577,6 +578,7 @@ conserto revelava o próximo, e nenhum aparecia sem rodar de verdade.
 | 32 | 🔴 Versão **vazia** era marcada `ready` e **ativada** | numa instalação com base funcionando, uma indexação com problema trocaria a base boa por uma vazia — o agente perderia o RAG em silêncio |
 | 33 | Fonte tipo `policy` era criada **vazia**, conteúdo descartado | a rota só tratava `source_type === "faq"`; política enviada com markdown voltava 201 com o conteúdo no lixo |
 | 34 | 🔴 Limiar padrão **0.72** descartava toda paráfrase | medido: relevante 0.49–0.85, irrelevante 0.27. Só a pergunta **literal** passava — o RAG parecia quebrado funcionando bem |
+| 35 | 🔴 (2026-08-27) Upload de ARQUIVO (`sources/upload/route.ts`, PDF/MD de política — distinto do #33, que era o caminho de texto colado) extraía e contava chunks só para VALIDAR o upload; nunca gravava o conteúdo em lugar consultável. O próprio `knowledge_source.updated` que o upload emitia disparava o reindex, que não achava nada da fonte em `ai_faq_items` e marcava `last_index_status='failed'` — sem que a tela explicasse por quê. Achado ao investigar o pedido de upload em lote de .md (não por execução da jornada — esta rota nunca teve consumidor de tela até agora, ver M6) | corrigido na migration 0177: tabela `ai_document_items` (novo tipo 'documents') + `workers/rag-indexer.ts` passou a lê-la. Prova: unit tests de rota/worker + `pnpm test:db` verde (116 arquivos, 877 testes). **NÃO PROVADO PELA TELA** — falta Playwright real (ver J3.16) |
 
 **Decisão de arquitetura tomada** (a que faltava para destravar): a reindexação
 **reconstrói UMA versão com TODAS as fontes**, em vez de uma versão por fonte —
