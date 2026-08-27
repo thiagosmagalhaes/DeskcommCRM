@@ -37,6 +37,7 @@ import { isLeadInHandoff } from './human-handoff';
 import { camadaLigada, lerCamadasDaOrg } from '../guardrails/camadas-da-org';
 import { isStatusSendable } from '../../channels/meta/template-binding';
 import { renderTemplateBody } from '../../channels/meta/render-template';
+import { interpolateTemplate } from '../../inbox/template-vars';
 import type { LeadStateRow } from './lead-state';
 import { loadReentryTemplate, pickReentryVariant } from './reentry-template';
 import {
@@ -613,6 +614,11 @@ async function runDeterministicReentry(
  * de produção já testado, e reescrevê-la para compartilhar arriscaria a superfície
  * que ela já cobre por uma economia de ~30 linhas.
  *
+ * `{{nome}}`/`{{primeiro_nome}}` num valor de slot são resolvidos aqui contra ESTE
+ * lead (`interpolateTemplate`, o MESMO vocabulário que o composer usa pros modelos
+ * internos) — ANTES de renderizar e ANTES de enviar, para os gates de conteúdo
+ * verem o texto real e o payload da plataforma nunca carregar o token cru.
+ *
  * @returns true = o envio SAIU (ou ficou sob custódia do canal) e o chamador deve
  *   fechar o turno com `complete()`. false = vetado/adiado — o chamador NÃO fecha;
  *   o dead-man do action node (ou o cron reagendado) decide o resto.
@@ -665,14 +671,6 @@ async function sendApprovedTemplateForFlowNode(
     );
   }
 
-  // O texto RENDERIZADO vai como `body` da cadeia: os gates de promessa, spinning e
-  // disclosure avaliam exatamente o que o contato vai ler.
-  const body = renderTemplateBody(linha.components, template.values, {
-    name: template.name,
-    language: template.language,
-    parameterFormat: linha.parameter_format,
-  });
-
   const context = await getLeadContext(pool, deps.crmCfg, { tenantId, leadId }, {
     historyLimit: deps.knobs.historyLimit,
     maxTokens: deps.knobs.maxContextTokens,
@@ -681,6 +679,27 @@ async function sendApprovedTemplateForFlowNode(
     throw new Error(`envio de modelo aprovado do fluxo falhou em get_lead_context (${context.error.code})`);
   }
   const optedOutThisTurn = context.context.contact.is_blocked;
+
+  // `{{nome}}`/`{{primeiro_nome}}` no valor de um slot são resolvidos AGORA, contra
+  // ESTE lead — o mesmo vocabulário e a mesma função que o composer usa pros
+  // modelos internos (`lib/inbox/template-vars.ts`). Resolvido ANTES de renderizar
+  // e ANTES de enviar: os gates de conteúdo (abaixo) precisam avaliar o texto que o
+  // contato vai ler de verdade, não o literal `{{nome}}`; e o payload de envio
+  // (`channel.send`) precisa do valor final, nunca do token cru.
+  const valoresResolvidos = Object.fromEntries(
+    Object.entries(template.values).map(([slot, valor]) => [
+      slot,
+      interpolateTemplate(valor, { name: context.context.contact.name }),
+    ]),
+  );
+
+  // O texto RENDERIZADO vai como `body` da cadeia: os gates de promessa, spinning e
+  // disclosure avaliam exatamente o que o contato vai ler.
+  const body = renderTemplateBody(linha.components, valoresResolvidos, {
+    name: template.name,
+    language: template.language,
+    parameterFormat: linha.parameter_format,
+  });
 
   const channel = (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(pool);
 
@@ -721,7 +740,7 @@ async function sendApprovedTemplateForFlowNode(
         seq: 1,
         conversationId,
         body: finalBody,
-        template: { name: template.name, language: template.language, values: template.values },
+        template: { name: template.name, language: template.language, values: valoresResolvidos },
       }),
   });
 

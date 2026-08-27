@@ -144,6 +144,12 @@ export const aiClassifyConfigSchema = z
  * `slotKey(address, key)` the template screen and the send builder use
  * (`lib/channels/meta/build-components.ts`) — a key built any other way is the
  * mismatch that phase 3a eliminated, coming back through this door.
+ *
+ * A value may embed `{{nome}}` / `{{primeiro_nome}}` — the SAME personalization
+ * vocabulary the inbox composer already resolves for internal templates
+ * (`lib/inbox/template-vars.ts`). It's plain text at config time (fixed once for
+ * every lead the step reaches); the runtime resolves those two tokens against the
+ * lead actually being sent to, right before rendering (`followup-turn.ts`).
  */
 export const approvedTemplateValuesSchema = z.record(z.string(), z.string().max(1024));
 

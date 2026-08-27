@@ -85,9 +85,11 @@ const SLOT_KINDS_SUPORTADOS = new Set(["text", "url_suffix", "image", "video", "
  * `APPROVED`: listar uma em revisão ou reprovada ofereceria uma escolha que falha no
  * clique (mesmo raciocínio do seletor da janela fechada, `JanelaFechadaAviso`).
  *
- * Os valores dos parâmetros são FIXOS aqui (preenchidos uma vez, na configuração do
- * passo) — o fluxo não tem de onde tirar um valor por lead além do que o operador
- * digitou, e um placeholder sem valor é recusado pela plataforma na hora do envio.
+ * O TEXTO de cada parâmetro é fixado aqui (uma vez, na configuração do passo) —
+ * mas pode conter `{{nome}}`/`{{primeiro_nome}}`, que o runtime resolve contra o
+ * lead de verdade no disparo (`interpolateTemplate`, o MESMO vocabulário do
+ * composer para modelos internos). Sem isso, ou com um valor vazio, o parâmetro é
+ * recusado pela plataforma na hora do envio.
  */
 function SeletorDeModeloAprovado({
   templateName,
@@ -151,7 +153,9 @@ function SeletorDeModeloAprovado({
       {atual && atual.slots.length > 0 && (
         <div className="space-y-2 rounded-md border border-border p-2">
           <p className="text-xs text-text-muted">
-            Valor fixo para cada parâmetro — vai igual em todo envio deste passo.
+            Valor para cada parâmetro — vai em todo envio deste passo. Use{" "}
+            {"{{primeiro_nome}}"} e {"{{nome}}"} para personalizar com o dado do
+            contato de cada lead.
           </p>
           {atual.slots.map((slot) => (
             <div key={slot.formKey} className="space-y-1">
@@ -161,6 +165,7 @@ function SeletorDeModeloAprovado({
               <Input
                 id={`action-slot-${slot.formKey}`}
                 value={templateValues[slot.formKey] ?? ""}
+                placeholder="Ex.: {{primeiro_nome}}"
                 maxLength={1024}
                 onChange={(e) =>
                   onChange({
