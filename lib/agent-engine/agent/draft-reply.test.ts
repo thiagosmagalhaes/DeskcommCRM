@@ -38,7 +38,6 @@ const AGENT: PublishedAgentConfig = {
   handoffKeywords: [],
   handoffToolEnabled: false,
   splitMessages: false,
-  splitMaxChars: 400,
   multimodalInput: false,
   casesEnabled: false,
   toolIds: [],

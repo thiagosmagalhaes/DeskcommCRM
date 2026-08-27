@@ -1804,7 +1804,6 @@ async function executarTurnoDoAgente(
             send: (finalBody: string) =>
               sendInBubbles(finalBody, {
                 enabled: agentConfig?.splitMessages ?? false,
-                maxChars: agentConfig?.splitMaxChars ?? 600,
                 sleep: deps.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms))),
                 jitter: () => 1200 + Math.floor(Math.random() * 800), // piso no throttle anti-ban (1.2s) — bolhas são mensagens físicas
                 send: (bubble): Promise<ChannelSendResult> => {
@@ -2420,7 +2419,7 @@ async function executarTurnoDoAgente(
   // skill casadas (F3-09) + hint do classificador (F3-11) + instrução de split (F4-xx, quando
   // split_messages está on — Onda 4). Vazios são omitidos.
   const splitHint = (agentConfig?.splitMessages ?? false)
-    ? 'Responda em mensagens curtas e naturais, uma ideia por mensagem — como uma pessoa digitando no WhatsApp. Prefira várias mensagens curtas a um texto único e longo.'
+    ? 'Responda em mensagens curtas e naturais, uma ideia por mensagem — como uma pessoa digitando no WhatsApp. Separe cada mensagem com uma linha em branco (parágrafo); cada parágrafo vira uma bolha própria.'
     : '';
   // Spec 15: o `case_id` real do caso 'awaiting_lead' desta conversa, se houver — sem
   // isso o modelo nunca consegue chamar provide_case_update quando o lead simplesmente

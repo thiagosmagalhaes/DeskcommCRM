@@ -72,7 +72,6 @@ function versao(n: number, status: string, prompt: string) {
     handoff_tool_enabled: true,
     cases_enabled: true,
     split_messages: true,
-    split_max_chars: 600,
     followup: { enabled: false, flow_pointer_ids: [] },
     operator_enabled: false,
     operator_model: null,

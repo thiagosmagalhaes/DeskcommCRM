@@ -46,7 +46,6 @@ const VERSAO_PUBLICADA = {
   handoff_tool_enabled: true,
   cases_enabled: true,
   split_messages: true,
-  split_max_chars: 240,
   followup: { enabled: true, flow_pointer_ids: ["pointer-1"] },
   status: "published",
   published_at: "2026-07-31T00:00:00Z",
@@ -113,7 +112,6 @@ describe("duplicateAgentWithVersion", () => {
     // quem escreve a linha nova é `versionPayloadFrom`. Coluna presente no SELECT
     // e ausente do INSERT faz a cópia nascer com o default — o toggle "some".
     expect(versao!.row.split_messages).toBe(true);
-    expect(versao!.row.split_max_chars).toBe(240);
     expect(versao!.row.followup).toEqual(VERSAO_PUBLICADA.followup);
     expect(versao!.row.credential_id).toBe("cred-1");
     expect(versao!.row.channel_session_id).toBe("chan-1");

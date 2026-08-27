@@ -31,7 +31,6 @@ export interface PublishedAgentConfig {
   handoffKeywords: string[];
   handoffToolEnabled: boolean;
   splitMessages: boolean;
-  splitMaxChars: number;
   /** input multimodal (imagem/áudio/pdf) habilitado no turno (Onda 3). */
   multimodalInput: boolean;
   /** tools open_human_case/provide_case_update habilitadas no turno (spec 15). */
@@ -90,7 +89,6 @@ interface Row {
   handoff_keywords: string[] | null;
   handoff_tool_enabled: boolean;
   split_messages: boolean;
-  split_max_chars: number;
   multimodal_input: boolean;
   cases_enabled: boolean;
   tool_ids: string[] | null;
@@ -118,7 +116,6 @@ const SELECT_AGENT_CONFIG_COLUMNS = `a.id as agent_id,
             v.handoff_keywords,
             v.handoff_tool_enabled,
             v.split_messages,
-            v.split_max_chars,
             v.multimodal_input,
             v.cases_enabled,
             v.tool_ids,
@@ -159,7 +156,6 @@ function mapAgentConfigRow(r: Row): PublishedAgentConfig {
     handoffKeywords: (r.handoff_keywords ?? []).map((k) => k.toLowerCase().trim()).filter((k) => k !== ''),
     handoffToolEnabled: r.handoff_tool_enabled,
     splitMessages: r.split_messages,
-    splitMaxChars: r.split_max_chars,
     multimodalInput: r.multimodal_input,
     casesEnabled: r.cases_enabled,
     toolIds: r.tool_ids ?? [],

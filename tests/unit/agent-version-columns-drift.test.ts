@@ -66,7 +66,6 @@ describe("VERSION_COLUMNS de ai_agent_versions", () => {
       expect(columns).toContain("handoff_tool_enabled");
       expect(columns).toContain("cases_enabled");
       expect(columns).toContain("split_messages");
-      expect(columns).toContain("split_max_chars");
     }
   });
 });
@@ -87,20 +86,17 @@ describe("versionCreateSchema aceita as flags por-agente que a tela edita", () =
     channel_session_id: "22222222-2222-4222-8222-222222222222",
   };
 
-  it("preserva split_messages/split_max_chars no parse", () => {
+  it("preserva split_messages no parse", () => {
     const parsed = versionCreateSchema.safeParse({
       ...base,
       split_messages: true,
-      split_max_chars: 240,
     });
     expect(parsed.success).toBe(true);
     expect(parsed.success && parsed.data.split_messages).toBe(true);
-    expect(parsed.success && parsed.data.split_max_chars).toBe(240);
   });
 
-  it("cai nos defaults da migration 0059 quando omitido", () => {
+  it("cai no default da migration 0059 quando omitido", () => {
     const parsed = versionCreateSchema.safeParse(base);
     expect(parsed.success && parsed.data.split_messages).toBe(false);
-    expect(parsed.success && parsed.data.split_max_chars).toBe(600);
   });
 });

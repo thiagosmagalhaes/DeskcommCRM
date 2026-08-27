@@ -136,7 +136,6 @@ interface FormState {
   handoff_tool_enabled: boolean;
   cases_enabled: boolean;
   split_messages: boolean;
-  split_max_chars: number;
   followup: FollowupValue;
   // Papel OPERADOR (spec 16 §3.2) — o que mexe no sistema depois da conversa.
   operator_enabled: boolean;
@@ -197,7 +196,6 @@ function buildState(args: {
     handoff_tool_enabled: version?.handoff_tool_enabled ?? true,
     cases_enabled: version?.cases_enabled ?? false,
     split_messages: version?.split_messages ?? false,
-    split_max_chars: version?.split_max_chars ?? 600,
     followup: version?.followup ?? DEFAULT_FOLLOWUP,
     operator_enabled: version?.operator_enabled ?? false,
     // O form usa "" onde o banco usa null — Select controlado não aceita null.
@@ -228,7 +226,6 @@ function toVersionPayload(s: FormState) {
     handoff_tool_enabled: s.handoff_tool_enabled,
     cases_enabled: s.cases_enabled,
     split_messages: s.split_messages,
-    split_max_chars: s.split_max_chars,
     followup: s.followup,
     operator_enabled: s.operator_enabled,
     // "" (não escolheu) → null (herda o do Conversador). São o mesmo conceito em
@@ -882,28 +879,9 @@ export function AgentForm(props: Props) {
             </div>
             <p className="text-xs text-muted-foreground">
               Em vez de um bloco único, a resposta sai em bolhas separadas, espaçadas pelo
-              mesmo ritmo anti-banimento do envio. O agente também é instruído a escrever
-              em parágrafos curtos.
+              mesmo ritmo anti-banimento do envio. Cada parágrafo (separado por uma linha em
+              branco) vira uma bolha própria — é o agente que decide onde quebrar ao escrever.
             </p>
-            {form.split_messages ? (
-              <div className="space-y-1">
-                <Label htmlFor="split_max_chars">Tamanho máximo por bolha (80–4000)</Label>
-                <Input
-                  id="split_max_chars"
-                  type="number"
-                  min={80}
-                  max={4000}
-                  step={20}
-                  value={form.split_max_chars}
-                  onChange={(e) => patch({ split_max_chars: Number(e.target.value) })}
-                  disabled={disabled}
-                  aria-invalid={!!validation.split_max_chars}
-                />
-                {validation.split_max_chars ? (
-                  <p className="text-xs text-destructive">{validation.split_max_chars}</p>
-                ) : null}
-              </div>
-            ) : null}
           </Card>
 
           {/* Capacidades */}

@@ -20,7 +20,6 @@ function fakeConfig(agentId: string): PublishedAgentConfig {
     handoffKeywords: [],
     handoffToolEnabled: false,
     splitMessages: false,
-    splitMaxChars: 900,
     multimodalInput: false,
     casesEnabled: false,
     toolIds: [],

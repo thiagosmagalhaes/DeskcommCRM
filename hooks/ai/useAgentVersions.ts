@@ -29,7 +29,6 @@ export interface AgentVersionRow {
   operator_tool_ids: string[];
   pipeline_ids: string[];
   split_messages: boolean;
-  split_max_chars: number;
   followup: { enabled: boolean; flow_pointer_ids: string[] };
   status: "draft" | "published" | "superseded" | "archived";
   published_at: string | null;

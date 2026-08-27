@@ -98,10 +98,12 @@ describe("o trigger de imutabilidade", () => {
     ).rejects.toThrow(/imutável|imutavel/i);
   });
 
-  it("cobre também as NOVE colunas que ele ignorava — o conserto de brinde", async () => {
+  it("cobre também as OITO colunas que ele ignorava — o conserto de brinde", async () => {
     // O trigger parava no `followup`. Tudo o que entrou depois era editável em
     // produção sem deixar trilha: o modelo do Operador, as ferramentas dele, o
     // corte de mensagens, o multimodal.
+    // (Eram nove na migration 0125; `split_max_chars` saiu na 0178 junto da
+    // coluna — ver o cabeçalho deste arquivo.)
     // ⚠️ Cada valor tem de ser DIFERENTE do default da coluna. A primeira versão
     // deste caso usava `multimodal_input = true`, que JÁ é o default: o
     // `is distinct from` dava false, o UPDATE passava, e o teste acusava o
@@ -113,7 +115,6 @@ describe("o trigger de imutabilidade", () => {
       ["operator_tool_ids", ["crm_update_lead"]], // default {}
       ["cases_enabled", true], // default false
       ["split_messages", true], // default false
-      ["split_max_chars", 500], // default 600
       ["multimodal_input", false], // default TRUE — invertido de propósito
       ["video_frames_enabled", true], // default false
     ];

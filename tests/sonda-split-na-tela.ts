@@ -23,7 +23,6 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL!, env.SUPABASE_SERVICE_R
 
 const ORG = "6e567068-fd1c-4f94-ae1f-40e0334be190";
 const AGENT = "69d04579-169d-40ac-bd43-ca5869598ace"; // Lia — AgendaPlus
-const MAX_CHARS = 240;
 
 async function main(): Promise<void> {
   const browser = await chromium.launch();
@@ -39,9 +38,6 @@ async function main(): Promise<void> {
   if (antes === "checked") throw new Error("já estava ligado: a prova precisa partir de desligado");
 
   await toggle.click();
-  const campoChars = page.locator("#split_max_chars");
-  await campoChars.waitFor({ state: "visible", timeout: 5_000 });
-  await campoChars.fill(String(MAX_CHARS));
   await page.screenshot({ path: "evidence/split-toggle-ligado.png", fullPage: false });
 
   await page.getByRole("button", { name: /Salvar rascunho/i }).click();
@@ -50,17 +46,13 @@ async function main(): Promise<void> {
 
   await page.reload({ waitUntil: "networkidle" });
   const depois = await page.locator("#split_messages").getAttribute("data-state");
-  const charsDepois = await page.locator("#split_max_chars").inputValue();
-  console.log(`[3] após reload — toggle: ${depois}, max_chars: ${charsDepois}`);
+  console.log(`[3] após reload — toggle: ${depois}`);
   if (depois !== "checked") throw new Error("REGREDIU: o toggle se desmarcou depois do reload");
-  if (charsDepois !== String(MAX_CHARS)) {
-    throw new Error(`REGREDIU: max_chars voltou para ${charsDepois}`);
-  }
   await page.screenshot({ path: "evidence/split-persistiu-apos-reload.png", fullPage: false });
 
   const { data: draft } = await admin
     .from("ai_agent_versions")
-    .select("version_number, status, split_messages, split_max_chars")
+    .select("version_number, status, split_messages")
     .eq("organization_id", ORG)
     .eq("agent_id", AGENT)
     .eq("status", "draft")
@@ -68,8 +60,8 @@ async function main(): Promise<void> {
     .limit(1)
     .maybeSingle();
   console.log("[4] linha da draft no banco:", draft);
-  if (draft?.split_messages !== true || draft?.split_max_chars !== MAX_CHARS) {
-    throw new Error("banco não recebeu os valores da tela");
+  if (draft?.split_messages !== true) {
+    throw new Error("banco não recebeu o valor da tela");
   }
 
   console.log("\nPASS — tela grava, servidor persiste, reload devolve.");
