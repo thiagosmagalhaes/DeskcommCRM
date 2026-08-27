@@ -19,11 +19,12 @@ interface Props {
   initialSources: SourceRow[];
 }
 
-const SLOTS: KnowledgeSourceType[] = ["faq", "policy", "conversations", "catalog"];
+const SLOTS: KnowledgeSourceType[] = ["faq", "policy", "documents", "conversations", "catalog"];
 
 function canonicalType(t: string): KnowledgeSourceType | "other" {
   if (t === "faq") return "faq";
   if (t === "policy") return "policy";
+  if (t === "documents") return "documents";
   if (t === "conversation" || t === "conversations") return "conversations";
   if (t === "catalog" || t === "nuvemshop_catalog") return "catalog";
   return "other";
@@ -57,6 +58,7 @@ export function KnowledgeSourcesClient({ agentId, initialSources }: Props) {
   const bySlot: Record<KnowledgeSourceType, SourceRow | undefined> = {
     faq: undefined,
     policy: undefined,
+    documents: undefined,
     conversations: undefined,
     catalog: undefined,
   };

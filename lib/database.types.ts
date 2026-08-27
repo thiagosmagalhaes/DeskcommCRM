@@ -685,6 +685,54 @@ export type Database = {
           },
         ]
       }
+      ai_document_items: {
+        Row: {
+          content: string
+          created_at: string
+          filename: string
+          id: string
+          knowledge_source_id: string
+          organization_id: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          filename: string
+          id?: string
+          knowledge_source_id: string
+          organization_id: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          knowledge_source_id?: string
+          organization_id?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_document_items_knowledge_source_id_fkey"
+            columns: ["knowledge_source_id"]
+            isOneToOne: false
+            referencedRelation: "ai_knowledge_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_document_items_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_faq_items: {
         Row: {
           answer: string

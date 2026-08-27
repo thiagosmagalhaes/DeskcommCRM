@@ -14319,4 +14319,73 @@ update public.ai_models
    and model_id !~* '(embedding|tts|whisper|moderation)'
    and supports_vision = false;
 
+
+-- ---- documentos de conhecimento: tipo novo e tabela de itens (migration 0177) ----
+--
+-- Upload em lote de .md pro RAG do agente. `source_type` ganha 'documents' —
+-- este é o bloco ÚNICO desta constraint (o CREATE TABLE do snapshot lá em
+-- cima, no início do arquivo, é `IF NOT EXISTS` e não roda de novo num banco
+-- que já tem a tabela — quem amplia o vocabulário edita ESTE bloco, nunca
+-- empilha outro; ver tests/unit/baseline-constraint-reconstruida.test.ts).
+--
+-- `ai_document_items` guarda um arquivo por linha, amarrado a UMA fonte
+-- 'documents' por agente — mesmo desenho de ai_faq_items (pergunta/resposta
+-- vira nome/conteúdo). Evita relaxar `ai_knowledge_sources_unique_per_agent`:
+-- o card lista vários arquivos dentro de uma única fonte.
+--
+-- É também o conserto do gap onde upload de política (PDF/MD) nunca chegava
+-- a ser consultado pelo agente: `ai_faq_items` era a ÚNICA tabela que
+-- `workers/rag-indexer.ts` lia para montar a base, e o upload de arquivo
+-- nunca gravava lá — a fonte virava `last_index_status='failed'` sozinha, no
+-- primeiro reindex automático depois do upload. `ai_document_items` é o lugar
+-- consultável que faltava para o tipo 'documents' (mudança de leitura no
+-- worker está no código, não nesta migration).
+alter table public.ai_knowledge_sources
+  drop constraint if exists ai_knowledge_sources_source_type_check;
+
+alter table public.ai_knowledge_sources
+  add constraint ai_knowledge_sources_source_type_check check (source_type in (
+    'faq', 'policy', 'catalog', 'conversations', 'conversation', 'nuvemshop_catalog', 'documents'
+  ));
+
+create table if not exists public.ai_document_items (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations(id) on delete cascade,
+  knowledge_source_id uuid not null references public.ai_knowledge_sources(id) on delete cascade,
+  filename text not null,
+  content text not null,
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ai_document_items_filename_per_source_unique unique (knowledge_source_id, filename)
+);
+
+create index if not exists ai_document_items_org_idx
+  on public.ai_document_items (organization_id);
+create index if not exists ai_document_items_source_idx
+  on public.ai_document_items (knowledge_source_id, position);
+
+comment on table public.ai_document_items is
+  'Um arquivo .md por linha, amarrado a UMA fonte ai_knowledge_sources do tipo ''documents''. '
+  'Mesmo desenho de ai_faq_items (pergunta/resposta -> nome/conteúdo): o card lista vários '
+  'arquivos dentro de uma única fonte, sem precisar relaxar o índice único por (agent_id, source_type).';
+
+alter table public.ai_document_items enable row level security;
+
+drop policy if exists "tenant_isolation_ai_document_items_all" on public.ai_document_items;
+create policy "tenant_isolation_ai_document_items_all" on public.ai_document_items
+  using (
+    public.fn_is_platform_admin()
+    or organization_id in (select public.fn_user_org_ids())
+  )
+  with check (
+    public.fn_is_platform_admin()
+    or organization_id in (select public.fn_user_org_ids())
+  );
+
+drop trigger if exists ai_document_items_updated_at on public.ai_document_items;
+create trigger ai_document_items_updated_at
+  before update on public.ai_document_items
+  for each row execute function public.fn_set_updated_at();
+
 notify pgrst, 'reload schema';

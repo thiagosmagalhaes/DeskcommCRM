@@ -14,6 +14,7 @@ import { isEmbeddingProviderConfigured } from "@/lib/ai/gateway";
 import { embedText } from "@/lib/ai/embed";
 import { acquireDebounce } from "@/lib/ai/rag/debounce";
 import { chunkText, computeContentHash } from "@/lib/ai/rag/chunker";
+import { chunkPolicyText } from "@/lib/ai/rag/ingest/policy";
 import { estimateTokens } from "@/lib/ai/runtime/history";
 import { formatProductForRag, type NuvemshopProduct } from "@/lib/ai/rag/format-product";
 import {
@@ -292,6 +293,17 @@ async function handleProductSynced(
  * meio, a versão anterior continua valendo e o agente segue respondendo com a
  * base antiga em vez de ficar sem base nenhuma.
  */
+// Tipos cujo conteúdo esta função efetivamente gerencia e cujo `content`
+// vive em tabela que ela consulta (ai_faq_items / ai_document_items).
+// `catalog`/`conversations` têm pipeline PRÓPRIO (nuvemshop sync e
+// `lib/ai/rag/ingest/conversations.ts`, que gravam ai_chunks diretamente) e
+// nascem com `status` default 'ready' — incluí-los aqui fazia esta função
+// marcar `last_index_status='failed'` numa fonte que nunca teve conteúdo
+// para ler DESTA tabela, toda vez que qualquer FAQ/política/documento
+// disparava reindex. O efeito: uma fonte de catálogo saudável piscava
+// "failed" na tela sem que nada estivesse de fato quebrado.
+const TIPOS_GERENCIADOS_POR_ESTA_FUNCAO = new Set(["faq", "policy", "documents"]);
+
 async function handleKnowledgeSourceUpdated(
   row: EventRow,
   agentId: string,
@@ -303,7 +315,8 @@ async function handleKnowledgeSourceUpdated(
     .select("id, source_type, name")
     .eq("organization_id", row.organization_id)
     .eq("agent_id", agentId)
-    .eq("status", "ready");
+    .eq("status", "ready")
+    .in("source_type", [...TIPOS_GERENCIADOS_POR_ESTA_FUNCAO]);
   if (srcErr) return { type: "error", detail: `sources_query_failed: ${srcErr.message}` };
 
   const sources = (sourceRows ?? []) as { id: string; source_type: string; name: string }[];
@@ -322,13 +335,33 @@ async function handleKnowledgeSourceUpdated(
     question: string;
     answer: string;
   }[];
-  if (items.length === 0) return skip("no_content_to_index");
+
+  // `ai_document_items` — um arquivo .md por linha, fontes do tipo
+  // 'documents' (upload em lote). Mesma tabela de origem de conteúdo que
+  // `ai_faq_items`, formato diferente: aqui a unidade é o arquivo inteiro,
+  // não um par pergunta/resposta.
+  const { data: docRows, error: docErr } = await admin
+    .from("ai_document_items")
+    .select("knowledge_source_id, filename, content, position")
+    .eq("organization_id", row.organization_id)
+    .in("knowledge_source_id", sources.map((s) => s.id))
+    .order("position", { ascending: true });
+  if (docErr) return { type: "error", detail: `document_items_query_failed: ${docErr.message}` };
+
+  const docItems = (docRows ?? []) as {
+    knowledge_source_id: string;
+    filename: string;
+    content: string;
+  }[];
+
+  if (items.length === 0 && docItems.length === 0) return skip("no_content_to_index");
+
+  const porFonte = new Map(sources.map((s) => [s.id, s]));
+  const pedacos: { content: string; sourceId: string; sourceType: string }[] = [];
 
   // Um chunk por par pergunta/resposta: a unidade de recuperação é a resposta
   // inteira. `chunkText` só entra quando a resposta é longa demais para um
   // chunk — assim uma FAQ curta nunca é picada no meio.
-  const porFonte = new Map(sources.map((s) => [s.id, s]));
-  const pedacos: { content: string; sourceId: string; sourceType: string }[] = [];
   for (const it of items) {
     const fonte = porFonte.get(it.knowledge_source_id);
     if (!fonte) continue;
@@ -337,6 +370,25 @@ async function handleKnowledgeSourceUpdated(
       pedacos.push({ content: c, sourceId: fonte.id, sourceType: fonte.source_type });
     }
   }
+
+  // Um documento pode ser longo — chunker consciente de heading (mesmo usado
+  // no upload de política). O nome do arquivo é prefixado em CADA pedaço
+  // (depois de picar, não antes): prefixar o texto inteiro antes de chunkar
+  // só beneficiaria o primeiro chunk — os seguintes perderiam a atribuição de
+  // origem, e o agente não saberia de qual arquivo veio um trecho recuperado
+  // no meio de um documento longo.
+  for (const doc of docItems) {
+    const fonte = porFonte.get(doc.knowledge_source_id);
+    if (!fonte) continue;
+    for (const c of chunkPolicyText(doc.content)) {
+      pedacos.push({
+        content: `Arquivo: ${doc.filename}\n\n${c}`,
+        sourceId: fonte.id,
+        sourceType: fonte.source_type,
+      });
+    }
+  }
+
   if (pedacos.length === 0) return skip("no_chunks_generated");
 
   const { versionId, versionNumber } = await createKnowledgeVersion({

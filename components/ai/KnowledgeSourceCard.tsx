@@ -1,14 +1,15 @@
 "use client";
 import { useState } from "react";
-import { HelpCircle, ShieldCheck, MessageSquare, Package, RefreshCw } from "lucide-react";
+import { HelpCircle, ShieldCheck, MessageSquare, Package, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SourceStatusBadge, deriveBadgeStatus } from "@/components/ai/SourceStatusBadge";
 import { NovaFonteDialog } from "@/components/ai/NovaFonteDialog";
+import { DocumentsDialog } from "@/components/ai/DocumentsDialog";
 import type { SourceRow } from "@/hooks/ai/useKnowledgeSources";
 
-export type KnowledgeSourceType = "faq" | "policy" | "conversations" | "catalog";
+export type KnowledgeSourceType = "faq" | "policy" | "conversations" | "catalog" | "documents";
 
 interface Props {
   source?: SourceRow | null;
@@ -63,6 +64,12 @@ const TYPE_META: Record<
     comoSePreenche:
       "Os produtos vêm da sincronização com o e-commerce, não de conteúdo digitado aqui.",
   },
+  documents: {
+    label: "Documentos",
+    Icon: FileText,
+    description: "Manuais, roteiros e procedimentos em arquivos .md.",
+    comoSePreenche: null,
+  },
 };
 
 function formatRelative(iso: string | null): string {
@@ -93,6 +100,7 @@ export function KnowledgeSourceCard({
     // controle decorativo. Só oferece cadastro quem tem os dois: tipo que
     // aceita texto colado e agente para amarrar a fonte.
     const cadastroManual = (type === "faq" || type === "policy") && !!agentId;
+    const uploadDocumentos = type === "documents" && !!agentId;
     return (
       <Card className="flex h-full flex-col">
         <CardHeader>
@@ -126,6 +134,20 @@ export function KnowledgeSourceCard({
               />
             </>
           ) : null}
+          {uploadDocumentos ? (
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setNovaAberta(true)}>
+                Enviar arquivos .md
+              </Button>
+              <DocumentsDialog
+                agentId={agentId as string}
+                sourceId={null}
+                aberto={novaAberta}
+                onFechar={() => setNovaAberta(false)}
+                onMudou={() => onCriada?.()}
+              />
+            </>
+          ) : null}
         </CardFooter>
       </Card>
     );
@@ -155,6 +177,13 @@ export function KnowledgeSourceCard({
           onClick={() => toast.info("Upload de política em breve.")}
         >
           Upload novo arquivo
+        </Button>
+      );
+    }
+    if (type === "documents") {
+      return (
+        <Button variant="ghost" size="sm" onClick={() => setNovaAberta(true)}>
+          Gerenciar arquivos
         </Button>
       );
     }
@@ -200,6 +229,15 @@ export function KnowledgeSourceCard({
           {isReindexing ? "Reindexando..." : "Re-indexar"}
         </Button>
         {extraButton}
+        {type === "documents" && agentId ? (
+          <DocumentsDialog
+            agentId={agentId}
+            sourceId={source.id}
+            aberto={novaAberta}
+            onFechar={() => setNovaAberta(false)}
+            onMudou={() => onCriada?.()}
+          />
+        ) : null}
       </CardFooter>
     </Card>
   );
