@@ -140,10 +140,24 @@ export const aiClassifyConfigSchema = z
   );
 
 /**
- * Action node configuration schema.
- * Supports two modes:
- * - ai_message: generate a message using AI with a prompt hint
- * - template: send a predefined template message
+ * Values for an approved WhatsApp template's `{{n}}` slots, keyed by the SAME
+ * `slotKey(address, key)` the template screen and the send builder use
+ * (`lib/channels/meta/build-components.ts`) — a key built any other way is the
+ * mismatch that phase 3a eliminated, coming back through this door.
+ */
+export const approvedTemplateValuesSchema = z.record(z.string(), z.string().max(1024));
+
+/**
+ * Action node configuration schema. Three modes:
+ * - ai_message: the AI drafts the message from a prompt hint
+ * - template: sends a fixed INTERNAL message template (lib/operacao/modelos-de-mensagem.ts)
+ * - approved_template: sends a WhatsApp-approved template (name+language, the
+ *   identity `sendTemplateForSession`/`meta_templates` key on) — the ONLY mode
+ *   that can reach a lead outside the 24h session window, because it's what
+ *   approval exists for. Named by (name, language) rather than a row id: an
+ *   approved template has no separate UUID surfaced anywhere in the product,
+ *   and every other place that sends one (the composer, the closed-window
+ *   picker) already addresses it the same way.
  */
 export const actionConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({
@@ -154,6 +168,12 @@ export const actionConfigSchema = z.discriminatedUnion('mode', [
   z.strictObject({
     mode: z.literal('template'),
     template_id: z.string().uuid(),
+  }),
+  z.strictObject({
+    mode: z.literal('approved_template'),
+    template_name: z.string().min(1).max(512),
+    template_language: z.string().min(2).max(16),
+    template_values: approvedTemplateValuesSchema.default({}),
   }),
 ]);
 

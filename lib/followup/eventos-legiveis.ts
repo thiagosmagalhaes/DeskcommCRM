@@ -166,7 +166,9 @@ export function resumoDoNo(node: FlowNode): NoDoDossie {
         resumo:
           node.config.mode === "ai_message"
             ? "o agente escreve e envia a mensagem"
-            : "envia uma mensagem de modelo pronto",
+            : node.config.mode === "approved_template"
+              ? "envia um modelo aprovado da plataforma (alcança mesmo com a janela fechada)"
+              : "envia uma mensagem de modelo pronto",
       };
     case "end":
       return { ...base, resumo: `encerra — ${DESFECHO[node.config.outcome] ?? node.config.outcome}` };

@@ -18,6 +18,7 @@ import { ROLE_RANK } from "@/lib/auth/types";
 import { metaSessionForOrg } from "@/lib/channels/meta/session";
 import { normalizeRejectedReason } from "@/lib/channels/meta/webhook";
 import { deriveTemplateContract, describeAddress } from "@/lib/channels/meta/template-contract";
+import { slotKey } from "@/lib/channels/meta/build-components";
 import { syncTemplates } from "@/lib/channels/meta/template-sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -39,6 +40,13 @@ export interface TemplateView {
     key: string;
     expects: string;
     onde: string;
+    /**
+     * A chave EXATA de `values` para este slot no envio — `slotKey(address, key)`,
+     * a mesma que `build-components.ts`/`render-template.ts` leem. `key` sozinha
+     * colide num carrossel (dois cards têm slot `key: '1'`); esta é a que quem
+     * monta um formulário de valores por slot deve usar, nunca `key` crua.
+     */
+    formKey: string;
   }>;
   /**
    * Texto de cada componente que carrega parâmetro, INTEIRO e uma vez só.
@@ -129,6 +137,7 @@ export async function GET(): Promise<NextResponse> {
         key: s.key,
         expects: s.expects,
         onde: describeAddress(s.address),
+        formKey: slotKey(s.address, s.key),
       })),
       previews: textPreviews(row.components),
       // A DEFINIÇÃO crua, como a rota do canal intermediado já devolve.

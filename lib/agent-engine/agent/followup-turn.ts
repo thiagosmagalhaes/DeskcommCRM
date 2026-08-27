@@ -35,6 +35,8 @@ import {
 } from './inbound-turn';
 import { isLeadInHandoff } from './human-handoff';
 import { camadaLigada, lerCamadasDaOrg } from '../guardrails/camadas-da-org';
+import { isStatusSendable } from '../../channels/meta/template-binding';
+import { renderTemplateBody } from '../../channels/meta/render-template';
 import type { LeadStateRow } from './lead-state';
 import { loadReentryTemplate, pickReentryVariant } from './reentry-template';
 import {
@@ -71,6 +73,15 @@ export const followupTurnPayloadSchema = z
     node_id: z.string().min(1).optional(),
     purpose: z.enum(['send_message', 'classify', 'plan_timing']).optional(),
     prompt_hint: z.string().optional(),
+    // action (mode 'approved_template') — envio determinístico ($0), sem LLM: o
+    // passo do fluxo já escolheu qual modelo, mesmo padrão de custo do F3-04.
+    approved_template: z
+      .object({
+        name: z.string().min(1),
+        language: z.string().min(1),
+        values: z.record(z.string(), z.string()),
+      })
+      .optional(),
     classes: z.array(z.string()).optional(),
     hint: z.string().optional(),
     // purpose 'plan_timing': as esperas adaptativas do fluxo inteiro, na ordem.
@@ -282,6 +293,7 @@ export function createFollowupTurnHandler(deps: FollowupTurnDeps) {
         nodeId: payload.node_id,
         purpose: payload.purpose,
         promptHint: payload.prompt_hint,
+        approvedTemplate: payload.approved_template,
         classes: payload.classes,
         hint: payload.hint,
         waits: payload.waits,
@@ -345,6 +357,7 @@ async function runFlowDrivenTurn(
     nodeId: string | undefined;
     purpose: 'send_message' | 'classify' | 'plan_timing' | undefined;
     promptHint: string | undefined;
+    approvedTemplate: { name: string; language: string; values: Record<string, string> } | undefined;
     classes: string[] | undefined;
     hint: string | undefined;
     waits: EsperaParaPlanejar[] | undefined;
@@ -363,6 +376,18 @@ async function runFlowDrivenTurn(
   const runLog = withFields(deps.log, { job_id: job.id, tenant_id: target.tenantId, lead_id: target.leadId, enrollment_id: enrollmentId });
 
   if (input.purpose === 'send_message') {
+    // 'approved_template' — envio DETERMINÍSTICO ($0): o passo já escolheu qual
+    // modelo, então não há nada para o modelo decidir. Ramo separado do
+    // `runAgentTurn` abaixo, que continua servindo 'ai_message' e o 'template'
+    // interno intocados (nenhum dos dois manda `approvedTemplate`).
+    if (input.approvedTemplate !== undefined) {
+      const enviou = await sendApprovedTemplateForFlowNode(deps, job, ctx, pool, clock, target, input.approvedTemplate);
+      if (enviou) {
+        await complete(pool, { organizationId: target.tenantId, enrollmentId, nodeId, result: { kind: 'sent' } });
+      }
+      return;
+    }
+
     await runAgentTurn(deps, job, pool, ctx, {
       channelSessionId: target.channelSessionId,
       conversationId: target.conversationId,
@@ -569,6 +594,172 @@ async function runDeterministicReentry(
       throw new Error('re-entrada determinística: CRM marcou o envio como failed — run re-tentado pela fila');
     case 'unavailable':
       throw new Error(`re-entrada determinística: canal indisponível (${outcome.reason}) — run re-tentado pela fila`);
+  }
+}
+
+/**
+ * Onda 5/9 — envio DETERMINÍSTICO ($0) de um modelo APROVADO a partir de um nó
+ * `action` do fluxo (`mode: 'approved_template'`, `lib/followup/graph-schema.ts`).
+ * Espelha `runDeterministicReentry` quase inteiro (mesma cadeia de guardrails,
+ * mesmo `isTemplate: true` para pular a janela de 24h, mesma reação a veto de
+ * anti-ban via `rescheduleReentry`) — o que muda é a ORIGEM do modelo (o passo já
+ * escolheu nome+idioma+valores no config, não um ponteiro de re-entrada) e o FECHO
+ * (quem chama decide se fecha o ENROLLMENT via `complete()`, não um job solto).
+ *
+ * Sem LLM de propósito: o config do nó já É a decisão inteira — chamar o modelo
+ * pagaria por uma escolha que não existe. A checagem de aprovação (`isStatusSendable`)
+ * e a renderização (`renderTemplateBody`) são as MESMAS que a tool `send_template`
+ * do agente usa (`inbound-turn.ts`) — duplicadas aqui de propósito: a tool é código
+ * de produção já testado, e reescrevê-la para compartilhar arriscaria a superfície
+ * que ela já cobre por uma economia de ~30 linhas.
+ *
+ * @returns true = o envio SAIU (ou ficou sob custódia do canal) e o chamador deve
+ *   fechar o turno com `complete()`. false = vetado/adiado — o chamador NÃO fecha;
+ *   o dead-man do action node (ou o cron reagendado) decide o resto.
+ *
+ * ⚠️ Limitação de escopo conhecida, herdada do desenho do action node (onda 5): o
+ * dead-man do fluxo (`MAX_ACTION_RECHECKS` × `ACTION_RECHECK_MS` ≈ 70min,
+ * `lib/followup/node-handlers.ts`) não sabe que um veto de janela anti-ban
+ * reagendou um cron pra mais tarde — se a janela só reabrir depois desse teto, o
+ * enrollment morre (`dead`) ANTES do cron reagendado completar. A mensagem ainda
+ * SAI (o cron não depende do enrollment vivo); só a flow perde o rastro do próprio
+ * envio (fica "esgotado" em vez de "convertido"). Não é regressão desta feature —
+ * a mesma característica já existe hoje para `ai_message` num canal com janela.
+ */
+async function sendApprovedTemplateForFlowNode(
+  deps: FollowupTurnDeps,
+  job: JobRow,
+  ctx: { workerId: string },
+  pool: pg.Pool,
+  clock: () => Date,
+  target: ReentrySendTarget,
+  template: { name: string; language: string; values: Record<string, string> },
+): Promise<boolean> {
+  const { tenantId, leadId, channelSessionId, conversationId } = target;
+  const runLog = withFields(deps.log, { job_id: job.id, tenant_id: tenantId, lead_id: leadId });
+
+  if (await isLeadInHandoff(pool, tenantId, leadId)) {
+    runLog.info('envio de modelo aprovado do fluxo pulado — lead silenciado (handoff/opt-out)', { kind: job.kind });
+    return false;
+  }
+
+  const camadasDaOrg = await lerCamadasDaOrg(pool, tenantId);
+
+  // "Existe" não é "pode ser disparado" — mesma distinção que a tool `send_template`
+  // faz. Um template DESCONHECIDO é erro de configuração do passo (dead-letra); um
+  // PENDING/REJECTED existe mas não é seu para disparar ainda.
+  const { rows } = await pool.query<{ components: unknown; parameter_format: string; status: string }>(
+    `select components, parameter_format, status from meta_templates
+      where organization_id = $1 and name = $2 and language = $3`,
+    [tenantId, template.name, template.language],
+  );
+  const linha = rows[0];
+  if (linha === undefined) {
+    throw new Error(
+      `passo do fluxo aponta para um modelo aprovado que não existe no espelho: "${template.name}" (${template.language}) — publique o modelo ou corrija o passo`,
+    );
+  }
+  if (!isStatusSendable(linha.status)) {
+    throw new Error(
+      `passo do fluxo aponta para "${template.name}" (${template.language}), que está ${linha.status} — só um modelo APPROVED pode ser disparado`,
+    );
+  }
+
+  // O texto RENDERIZADO vai como `body` da cadeia: os gates de promessa, spinning e
+  // disclosure avaliam exatamente o que o contato vai ler.
+  const body = renderTemplateBody(linha.components, template.values, {
+    name: template.name,
+    language: template.language,
+    parameterFormat: linha.parameter_format,
+  });
+
+  const context = await getLeadContext(pool, deps.crmCfg, { tenantId, leadId }, {
+    historyLimit: deps.knobs.historyLimit,
+    maxTokens: deps.knobs.maxContextTokens,
+  });
+  if (!context.ok) {
+    throw new Error(`envio de modelo aprovado do fluxo falhou em get_lead_context (${context.error.code})`);
+  }
+  const optedOutThisTurn = context.context.contact.is_blocked;
+
+  const channel = (deps.channel ?? ((p: pg.Pool) => new WahaChannelAdapter(p, deps.crmCfg)))(pool);
+
+  const chain = await runBeforeSend({
+    pool,
+    log: runLog,
+    tenantId,
+    leadId,
+    jobId: job.id,
+    channelSessionId,
+    body,
+    // Só ESTE gate muda (pula a janela de 24h — é para isso que a aprovação
+    // existe); stop, LGPD, anti-ban e pacing continuam valendo integralmente.
+    isTemplate: true,
+    optedOutThisTurn,
+    crmDailyLimit: null,
+    now: clock(),
+    sleep: deps.sleep,
+    lgpd: context.lgpd,
+    ...(deps.knobs.disclosureMode !== undefined ? { disclosureMode: deps.knobs.disclosureMode } : {}),
+    ...(camadaLigada(camadasDaOrg.promessa_semantica, deps.knobs.promiseSemantic?.enabled === true)
+      ? {
+          classifyPromiseSemantic: (candidate: string) =>
+            classifyPromise(
+              pool,
+              deps.llmCfg,
+              { tenantId, leadId, jobId: job.id },
+              { candidate, ...(deps.knobs.promiseSemantic?.model !== undefined ? { model: deps.knobs.promiseSemantic.model } : {}) },
+              { ...(deps.registry !== undefined ? { registry: deps.registry } : {}), log: runLog },
+            ),
+        }
+      : {}),
+    send: (finalBody) =>
+      channel.send({
+        tenantId,
+        leadId,
+        jobId: job.id,
+        seq: 1,
+        conversationId,
+        body: finalBody,
+        template: { name: template.name, language: template.language, values: template.values },
+      }),
+  });
+
+  if (chain.status === 'vetoed') {
+    if (chain.code === 'outside_window' && chain.nextAllowedAt !== undefined) {
+      await rescheduleReentry(pool, {
+        tenantId,
+        leadId,
+        jobId: job.id,
+        at: chain.nextAllowedAt,
+        payload: job.payload,
+      });
+      runLog.info('envio de modelo aprovado do fluxo re-agendado por janela anti-ban', {
+        code: chain.code,
+        next_run_at: chain.nextAllowedAt.toISOString(),
+      });
+      return false;
+    }
+    runLog.info('envio de modelo aprovado do fluxo vetado pela cadeia — não re-agendado', { code: chain.code });
+    return false;
+  }
+
+  const outcome = chain.outcome;
+  switch (outcome.kind) {
+    case 'sent':
+    case 'already_sent':
+    case 'queued':
+      runLog.info('envio de modelo aprovado do fluxo concluído', { kind: outcome.kind });
+      return true;
+    case 'blocked':
+      await applySendOutcome(pool, outcome, { jobId: job.id, workerId: ctx.workerId, tenantId, leadId }, {
+        queuedRetryDelayMs: deps.knobs.queuedRetryDelayMs,
+      });
+      throw new JobSettledError('envio de modelo aprovado do fluxo vetado pelo sink (is_blocked) — job cancelado em definitivo');
+    case 'failed':
+      throw new Error('envio de modelo aprovado do fluxo: CRM marcou o envio como failed — run re-tentado pela fila');
+    case 'unavailable':
+      throw new Error(`envio de modelo aprovado do fluxo: canal indisponível (${outcome.reason}) — run re-tentado pela fila`);
   }
 }
 

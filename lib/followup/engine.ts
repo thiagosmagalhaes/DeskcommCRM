@@ -58,6 +58,12 @@ export interface FollowupJobRequest {
     purpose: "send_message" | "classify" | "plan_timing";
     /** action (mode 'ai_message') — Task 5.1: repassado ao turno pra virar o bloco de orientação. */
     prompt_hint?: string;
+    /**
+     * action (mode 'approved_template') — nome+idioma+valores do modelo aprovado
+     * a enviar. Presente ⇒ o turno faz um envio DETERMINÍSTICO (sem LLM, igual ao
+     * F3-04): o passo já escolheu QUAL modelo, não há nada para a IA decidir.
+     */
+    approved_template?: { name: string; language: string; values: Record<string, string> };
     /** ai_classify — Task 5.1: classes possíveis + dica opcional pro classificador. */
     classes?: string[];
     hint?: string;
@@ -169,6 +175,15 @@ function eventPayload(result: NodeResult): Record<string, unknown> {
 function turnPayloadExtras(node: FlowNode, smartWaits: EsperaAdaptativa[]): Partial<FollowupJobRequest["payload"]> {
   if (node.type === "action" && node.config.mode === "ai_message") {
     return { prompt_hint: node.config.prompt_hint };
+  }
+  if (node.type === "action" && node.config.mode === "approved_template") {
+    return {
+      approved_template: {
+        name: node.config.template_name,
+        language: node.config.template_language,
+        values: node.config.template_values,
+      },
+    };
   }
   if (node.type === "ai_classify") {
     return { classes: node.config.classes, ...(node.config.hint !== undefined ? { hint: node.config.hint } : {}) };

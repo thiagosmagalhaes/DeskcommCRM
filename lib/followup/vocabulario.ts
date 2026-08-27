@@ -409,6 +409,10 @@ export const MODOS_DE_ESPERA: Record<ModoDeEspera, string> = {
 export const MODOS_DA_ACAO: Record<ModoDaAcao, string> = {
   ai_message: "Mensagem escrita pela IA",
   template: "Modelo de mensagem pronto",
+  // Modelo aprovado da PLATAFORMA (WhatsApp) — nome neutro de propósito
+  // (doutrina de restrição de canal, invariante 1): a tela não sabe se o canal
+  // por trás é o oficial ou o intermediado, só que existe um modelo aprovado.
+  approved_template: "Modelo aprovado da plataforma",
 };
 
 // ─── nó final ────────────────────────────────────────────────────────────

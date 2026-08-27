@@ -9,6 +9,8 @@ export interface TemplateSlotView {
   expects: string;
   /** Rótulo humano do endereço: "corpo", "cabeçalho", "card 2 › cabeçalho". */
   onde: string;
+  /** Chave exata em `values` para este slot no envio (`slotKey(address, key)`). */
+  formKey: string;
 }
 
 /** Texto de um componente, inteiro e uma vez só — a UI marca os `{{n}}`. */

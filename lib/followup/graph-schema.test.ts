@@ -339,6 +339,68 @@ describe('graph-schema', () => {
         expect(result.success).toBe(false);
       });
     });
+
+    describe('approved_template mode', () => {
+      it('accepts a valid approved-template config with no slots', () => {
+        const result = actionConfigSchema.safeParse({
+          mode: 'approved_template',
+          template_name: 'lembrete_consulta',
+          template_language: 'pt_BR',
+        });
+        expect(result.success).toBe(true);
+        if (result.success && result.data.mode === 'approved_template') {
+          // template_values defaults to {} — a node published before slot
+          // values existed still parses without one.
+          expect(result.data.template_values).toEqual({});
+        }
+      });
+
+      it('accepts explicit slot values, keyed by formKey', () => {
+        const result = actionConfigSchema.safeParse({
+          mode: 'approved_template',
+          template_name: 'lembrete_consulta',
+          template_language: 'pt_BR',
+          template_values: { '1': 'Ana', 'header:1': 'amanhã' },
+        });
+        expect(result.success).toBe(true);
+      });
+
+      it('rejects approved_template without template_name', () => {
+        const result = actionConfigSchema.safeParse({
+          mode: 'approved_template',
+          template_language: 'pt_BR',
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('rejects approved_template without template_language', () => {
+        const result = actionConfigSchema.safeParse({
+          mode: 'approved_template',
+          template_name: 'lembrete_consulta',
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('rejects extra keys', () => {
+        const result = actionConfigSchema.safeParse({
+          mode: 'approved_template',
+          template_name: 'lembrete_consulta',
+          template_language: 'pt_BR',
+          extra_key: 'should reject',
+        });
+        expect(result.success).toBe(false);
+      });
+
+      it('does not collide with internal template_id mode — the two are distinct branches', () => {
+        // Same 'mode: template' shape from before this change must still parse
+        // — approved_template is an ADDITIVE branch, not a replacement.
+        const legacy = actionConfigSchema.safeParse({
+          mode: 'template',
+          template_id: '550e8400-e29b-41d4-a716-446655440000',
+        });
+        expect(legacy.success).toBe(true);
+      });
+    });
   });
 
   describe('conditionConfigSchema', () => {

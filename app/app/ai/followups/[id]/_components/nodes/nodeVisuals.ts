@@ -121,7 +121,9 @@ export function describeNodeConfig(type: NodeType, config: FlowNode["config"]): 
     }
     case "action": {
       const c = config as ConfigOf<"action">;
-      return c.mode === "ai_message" ? c.prompt_hint : "Template fixo";
+      if (c.mode === "ai_message") return c.prompt_hint;
+      if (c.mode === "approved_template") return `Modelo aprovado: ${c.template_name}`;
+      return "Template fixo";
     }
     case "end": {
       const c = config as ConfigOf<"end">;
